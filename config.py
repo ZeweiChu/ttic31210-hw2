@@ -160,7 +160,7 @@ def get_args():
     # Optimization details
     parser.add_argument('--batch_size',
                         type=int,
-                        default=32,
+                        default=64,
                         help='Batch size')
 
     parser.add_argument('--num_epoches',
@@ -180,7 +180,7 @@ def get_args():
 
     parser.add_argument('--optimizer',
                         type=str,
-                        default='SGD',
+                        default='Adam',
                         help='Optimizer: sgd (default) or adam or rmsprop')
 
     parser.add_argument('--learning_rate', '-lr',

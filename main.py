@@ -25,19 +25,20 @@ def eval(model, data, args, crit):
 	for idx, (mb_s, mb_mask) in enumerate(data):
 
 		batch_size = mb_s.shape[0]
-		mb_input = Variable(torch.from_numpy(mb_s[:,:-1])).long()
-		mb_out = Variable(torch.from_numpy(mb_s[:, 1:])).long()
-		mb_out_mask = Variable(torch.from_numpy(mb_mask[:, 1:]))
+		mb_input = Variable(torch.from_numpy(mb_s[:,:-1]), volatile=True).long()
+		mb_out = Variable(torch.from_numpy(mb_s[:, 1:]), volatile=True).long()
+		mb_out_mask = Variable(torch.from_numpy(mb_mask[:, 1:]), volatile=True)
 		hidden = model.init_hidden(batch_size)
 		mb_pred, hidden = model(mb_input, hidden)
 		num_words = torch.sum(mb_out_mask).data[0]
-		loss += crit(mb_pred, mb_out, mb_out_mask).data[0]
+		loss += crit(mb_pred, mb_out, mb_out_mask).data[0] * num_words
+
 		total_num_words += num_words
 
 		mb_pred = torch.max(mb_pred.view(mb_pred.size(0) * mb_pred.size(1), mb_pred.size(2)), 1)[1]
 		correct = (mb_pred == mb_out).float()
 		# code.interact(local=locals())
-		correct_count += torch.sum(correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1))
+		correct_count += torch.sum(correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)).data[0]
 		total_num_words += torch.sum(mb_out_mask).data[0]
 		# bar.update(idx+1)
 
@@ -91,13 +92,18 @@ def main(args):
 	# 	print("dev loss %f" % loss)
 	# 	return 0
 
-	# correct_count, loss = eval(model, all_dev, args)
-	# acc = float(correct_count) / float(args.num_dev)
-	# best_acc = acc
-	# print("dev accuracy %f" % acc)
-	# loss = loss / args.num_dev
-	# print("dev loss %f" % loss)
-	# code.interact(local=locals())
+	
+	crit = utils.LanguageModelCriterion()
+
+	print("start evaluating on dev...")
+
+	correct_count, loss, num_words = eval(model, dev_sentences, args, crit)
+
+	loss = loss / num_words
+	acc = correct_count / num_words
+	print("loss %s" % (loss) )
+	print("accuracy %f" % (acc))
+	best_acc = acc
 
 	learning_rate = args.learning_rate
 	if args.optimizer == "SGD":
@@ -107,12 +113,11 @@ def main(args):
 	# best_loss = loss
 
 
-	crit = utils.LanguageModelCriterion()
 	for epoch in range(args.num_epoches):
 
 		np.random.shuffle(train_sentences)
 		num_batches = len(train_sentences)
-		# bar = progressbar.ProgressBar(max_value= num_batches * args.eval_epoch, redirect_stdout=True)
+		bar = progressbar.ProgressBar(max_value= num_batches * args.eval_epoch, redirect_stdout=True)
 		total_train_loss = 0.
 		total_num_words = 0.
 		for idx, (mb_s, mb_mask) in enumerate(train_sentences):
@@ -128,19 +133,14 @@ def main(args):
 			num_words = torch.sum(mb_out_mask).data[0]
 			total_train_loss += loss.data[0] * num_words
 			total_num_words += num_words
-			# loss = (torch.abs(mb_a - mb_out) * torch.log(torch.abs(mb_a - mb_out) + 1e-9)).sum() / batch_size
-		
+	
 			optimizer.zero_grad()
 			loss.backward()
-			# for p in model.parameters():
-			# 	grad = p.grad.data.numpy()
-			# 	grad[np.isnan(grad)] = 0
-			# 	p.grad.data = torch.Tensor(grad)
 			optimizer.step()
-			print(loss.data[0])
-			# bar.update(num_batches * (epoch % args.eval_epoch) + idx +1)
+			# print(loss.data[0])
+			bar.update(num_batches * (epoch % args.eval_epoch) + idx +1)
 		
-		# bar.finish()
+		bar.finish()
 		print("training loss: %f" % (total_train_loss / total_num_words))
 
 		if (epoch+1) % args.eval_epoch == 0:
@@ -150,25 +150,21 @@ def main(args):
 	
 			correct_count, loss, num_words = eval(model, dev_sentences, args, crit)
 
-			print("loss %s" % (loss / num_words) )
-			print("accuracy %f" % (correct_count / num_words))
+			loss = loss / num_words
+			acc = correct_count / num_words
+			print("loss %s" % (loss) )
+			print("accuracy %f" % (acc))
 
-			# acc = float(correct_count) / float(args.num_dev)
-			# print("dev accuracy %f" % acc)
-			# loss = loss / args.num_dev
-			# print("dev loss %f" % loss)
-			
-
-			# if acc > best_acc:
-			# 	torch.save(model, args.model_file)
-			# 	best_acc = acc
-			# 	print("model saved...")
-			# else:
-			# 	learning_rate *= 0.5
-			# 	if args.optimizer == "SGD":
-			# 		optimizer = optim.SGD(model.parameters(), lr=learning_rate)
-			# 	elif args.optimizer == "Adam":
-			# 		optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+			if acc > best_acc:
+				torch.save(model, args.model_file)
+				best_acc = acc
+				print("model saved...")
+			else:
+				learning_rate *= 0.5
+				if args.optimizer == "SGD":
+					optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+				elif args.optimizer == "Adam":
+					optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
 			# print("best dev accuracy: %f" % best_acc)
 			# print("#" * 60)
