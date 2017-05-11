@@ -14,45 +14,35 @@ import progressbar
 import pickle
 import math
 
-def eval(model, data, args, att_dict={}):
+def eval(model, data, args, crit):
 	total_dev_batches = len(data)
 	correct_count = 0.
-	bar = progressbar.ProgressBar(max_value=total_dev_batches).start()
+	# bar = progressbar.ProgressBar(max_value=total_dev_batches).start()
 	loss = 0.
+	total_num_words = 0.
 
 	print("total dev %d" % total_dev_batches)
+	for idx, (mb_s, mb_mask) in enumerate(data):
 
-	# code.interact(local=locals())
-	for idx, (mb_d, mb_mask_d, mb_l) in enumerate(data):
-		# print(mb_d)
-		mb_d = Variable(torch.from_numpy(mb_d)).long()
-		# print("after")
-		# print(mb_d)
-		mb_mask_d = Variable(torch.from_numpy(mb_mask_d))
-		if args.check_att:
-			mb_out, att_dict = model(mb_d, mb_mask_d, att_dict, check_att=args.check_att)
-		else:
-			mb_out = model(mb_d, mb_mask_d, att_dict)
-		# print(mb_out)
+		batch_size = mb_s.shape[0]
+		mb_input = Variable(torch.from_numpy(mb_s[:,:-1])).long()
+		mb_out = Variable(torch.from_numpy(mb_s[:, 1:])).long()
+		mb_out_mask = Variable(torch.from_numpy(mb_mask[:, 1:]))
+		hidden = model.init_hidden(batch_size)
+		mb_pred, hidden = model(mb_input, hidden)
+		num_words = torch.sum(mb_out_mask).data[0]
+		loss += crit(mb_pred, mb_out, mb_out_mask).data[0]
+		total_num_words += num_words
 
-		batch_size = mb_d.size(0)
-		mb_a = Variable(torch.Tensor(mb_l).type_as(mb_out.data)).view(batch_size, -1)
-		loss += (- mb_a * torch.log(mb_out + 1e-9) - (1. - mb_a) * torch.log(1. - mb_out + 1e-9)).sum().data[0]
-		# (torch.abs(mb_a - mb_out) * torch.log(torch.abs(mb_a - mb_out) + 1e-9)).sum().data[0]
-		
-		res = torch.abs(mb_a - mb_out) < 0.5
+		mb_pred = torch.max(mb_pred.view(mb_pred.size(0) * mb_pred.size(1), mb_pred.size(2)), 1)[1]
+		correct = (mb_pred == mb_out).float()
 		# code.interact(local=locals())
-		correct_count += res.sum().data[0]
-		# print(correct_count)
+		correct_count += torch.sum(correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1))
+		total_num_words += torch.sum(mb_out_mask).data[0]
+		# bar.update(idx+1)
 
-		bar.update(idx+1)
-
-	bar.finish()
-	
-	if args.check_att:
-		return correct_count, loss, att_dict
-	else:
-		return correct_count, loss
+	# bar.finish()
+	return correct_count, loss, total_num_words
 
 def train(sentences):
 	pass
@@ -157,29 +147,31 @@ def main(args):
 			
 
 			print("start evaluating on dev...")
-			# print(all_dev)
-			correct_count, loss = eval(model, dev_sentences, args)
-			# print("correct count %f" % correct_count)
-			# print("total count %d" % args.num_dev)
-			acc = float(correct_count) / float(args.num_dev)
-			print("dev accuracy %f" % acc)
-			loss = loss / args.num_dev
-			print("dev loss %f" % loss)
+	
+			correct_count, loss, num_words = eval(model, dev_sentences, args, crit)
+
+			print("loss %s" % (loss / num_words) )
+			print("accuracy %f" % (correct_count / num_words))
+
+			# acc = float(correct_count) / float(args.num_dev)
+			# print("dev accuracy %f" % acc)
+			# loss = loss / args.num_dev
+			# print("dev loss %f" % loss)
 			
 
-			if acc > best_acc:
-				torch.save(model, args.model_file)
-				best_acc = acc
-				print("model saved...")
-			else:
-				learning_rate *= 0.5
-				if args.optimizer == "SGD":
-					optimizer = optim.SGD(model.parameters(), lr=learning_rate)
-				elif args.optimizer == "Adam":
-					optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+			# if acc > best_acc:
+			# 	torch.save(model, args.model_file)
+			# 	best_acc = acc
+			# 	print("model saved...")
+			# else:
+			# 	learning_rate *= 0.5
+			# 	if args.optimizer == "SGD":
+			# 		optimizer = optim.SGD(model.parameters(), lr=learning_rate)
+			# 	elif args.optimizer == "Adam":
+			# 		optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-			print("best dev accuracy: %f" % best_acc)
-			print("#" * 60)
+			# print("best dev accuracy: %f" % best_acc)
+			# print("#" * 60)
 
 
 if __name__ == "__main__":
