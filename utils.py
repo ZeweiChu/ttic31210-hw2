@@ -94,3 +94,17 @@ class LanguageModelCriterion(nn.Module):
         output = torch.sum(output) / torch.sum(mask)
 
         return output
+
+class HingeModelCriterion(nn.Module):
+    def __init__(self):
+        super(HingeModelCriterion, self).__init__()
+
+    def forward(self, input, target, mask):
+        input = input.view(input.size(0)*input.size(1), input.size(2))
+        target = target.view(target.size(0)*target.size(1), 1)
+        correct = input.gather(1, target).expand_as(input)
+        loss = torch.sum(torch.sum(torch.max(input + 1  - correct, 0)[0], 1) - 1) / torch.sum(mask)
+
+        return loss
+
+        

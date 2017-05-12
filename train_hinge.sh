@@ -1,0 +1,1 @@
+python main_hinge.py --train_file data/bobsue.lm.train.txt --dev_file data/bobsue.lm.dev.txt --test_file data/bobsue.lm.test.txt --batch_size 128 --num_epoches 50 --model_file model_hinge.th --model LSTMHingeModel --criterion HingeModelCriterion --learning_rate 0.001 --embedding_size 256 --hidden_size 256 

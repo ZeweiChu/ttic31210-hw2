@@ -21,15 +21,17 @@ def eval(model, data, args, crit):
 	loss = 0.
 	total_num_words = 0.
 
-	print("total dev %d" % total_dev_batches)
+	print("total %d" % total_dev_batches)
 	for idx, (mb_s, mb_mask) in enumerate(data):
-
 		batch_size = mb_s.shape[0]
 		mb_input = Variable(torch.from_numpy(mb_s[:,:-1]), volatile=True).long()
 		mb_out = Variable(torch.from_numpy(mb_s[:, 1:]), volatile=True).long()
 		mb_out_mask = Variable(torch.from_numpy(mb_mask[:, 1:]), volatile=True)
 		hidden = model.init_hidden(batch_size)
 		mb_pred, hidden = model(mb_input, hidden)
+
+		# code.interact(local=locals())
+
 		num_words = torch.sum(mb_out_mask).data[0]
 		loss += crit(mb_pred, mb_out, mb_out_mask).data[0] * num_words
 
@@ -38,7 +40,7 @@ def eval(model, data, args, crit):
 		mb_pred = torch.max(mb_pred.view(mb_pred.size(0) * mb_pred.size(1), mb_pred.size(2)), 1)[1]
 		correct = (mb_pred == mb_out).float()
 		# code.interact(local=locals())
-		correct_count += torch.sum(correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)).data[0]
+		correct_count += torch.sum(correct * mb_out_mask.contiguous().view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)).data[0]
 		total_num_words += torch.sum(mb_out_mask).data[0]
 		# bar.update(idx+1)
 
@@ -76,33 +78,27 @@ def main(args):
 
 	if os.path.exists(args.model_file):
 		model = torch.load(args.model_file)
-	else:
+	elif args.model == "LSTMHingeModel":
+		model = LSTMHingeModel(args)
+	elif args.model == "LSTMHingeOutEmbModel":
+		model = LSTMHingeOutEmbModel(args)
+	elif args.model == "LSTMModel":
 		model = LSTMModel(args)
 
-	# if args.test_only:
-	# 	print("start evaluating on test")
-	# 	correct_count, loss = eval(model, all_test, args)
-	# 	print("test accuracy %f" % (float(correct_count) / float(args.num_test)))
-	# 	loss = loss / args.num_test
-	# 	print("test loss %f" % loss)
 
-	# 	correct_count, loss = eval(model, all_dev, args)
-	# 	print("dev accuracy %f" % (float(correct_count) / float(args.num_dev)))
-	# 	loss = loss / args.num_dev
-	# 	print("dev loss %f" % loss)
-	# 	return 0
-
-
-	crit = utils.LanguageModelCriterion()
+	if args.criterion == "HingeModelCriterion":
+		crit = utils.HingeModelCriterion()
+	elif args.criterion == "LanguageModelCriterion":
+		crit = utils.LanguageModelCriterion()
 
 	print("start evaluating on dev...")
-
+	
 	correct_count, loss, num_words = eval(model, dev_sentences, args, crit)
 
 	loss = loss / num_words
 	acc = correct_count / num_words
-	print("loss %s" % (loss) )
-	print("accuracy %f" % (acc))
+	print("dev loss %s" % (loss) )
+	print("dev accuracy %f" % (acc))
 	best_acc = acc
 
 	learning_rate = args.learning_rate
@@ -112,6 +108,7 @@ def main(args):
 		optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 	# best_loss = loss
 
+	# F.linear(embedded.view(embedded.size(0)*embedded.size(1), embedded.size(2)), model.embed.weight)
 
 	for epoch in range(args.num_epoches):
 
@@ -132,6 +129,7 @@ def main(args):
 			loss = crit(mb_pred, mb_out, mb_out_mask)
 			num_words = torch.sum(mb_out_mask).data[0]
 			total_train_loss += loss.data[0] * num_words
+			# code.interact(local=locals())
 			total_num_words += num_words
 	
 			optimizer.zero_grad()
@@ -158,6 +156,10 @@ def main(args):
 			if acc > best_acc:
 				torch.save(model, args.model_file)
 				best_acc = acc
+				# infos['epoch'] = epoch
+				# infos['best_acc'] = best_acc
+				# infos['vocab']
+
 				print("model saved...")
 			else:
 				learning_rate *= 0.5
@@ -179,6 +181,14 @@ def main(args):
 	acc = correct_count / num_words
 	print("test loss %s" % (loss) )
 	print("test accuracy %f" % (acc))
+
+
+
+	correct_count, loss, num_words = eval(model, train_sentences, args, crit)
+	loss = loss / num_words
+	acc = correct_count / num_words
+	print("train loss %s" % (loss) )
+	print("train accuracy %f" % (acc))
 
 
 if __name__ == "__main__":

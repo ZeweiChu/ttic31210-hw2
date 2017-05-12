@@ -62,7 +62,6 @@ class LSTM(nn.Module):
 
         hx, cx = hx
         for i in range(T):
-            # code.interact(local=locals())
             gates = F.linear(input[:, i, :], self.weight_ih_l0, self.bias_ih_l0) \
                         + F.linear(hx, self.weight_hh_l0, self.bias_hh_l0)
 
@@ -106,10 +105,57 @@ class LSTMModel(nn.Module):
 
     def forward(self, d, hidden):
         d_embedded = self.embed(d)
-        # code.interact(local=locals())
-        # print(d)
         forgetgates, hiddens, cellgates, output = self.lstm(d_embedded, hidden)
         decoded = self.decoder(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)))
         decoded = F.log_softmax(decoded)
         return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens
 
+class LSTMHingeModel(nn.Module):
+    def __init__(self, args):
+        super(LSTMHingeModel, self).__init__()
+
+        self.nhid = args.hidden_size
+        self.nlayers = args.num_layers
+
+        # self.decoder = nn.Linear(self.nhid, args.vocab_size)
+        self.embed = nn.Embedding(args.vocab_size, args.embedding_size)
+        self.lstm = LSTM(args.embedding_size, args.hidden_size)
+
+        self.embed.weight.data.uniform_(-0.1, 0.1)
+        # self.decoder.bias.data.fill_(0)
+        # self.decoder.weight.data.uniform_(-0.1, 0.1)
+
+    def init_hidden(self, bsz):
+        weight = next(self.parameters()).data
+        return (Variable(weight.new(bsz, self.nhid).zero_()),
+                Variable(weight.new(bsz, self.nhid).zero_()))
+
+
+    def forward(self, d, hidden):
+        d_embedded = self.embed(d)
+        forgetgates, hiddens, cellgates, output = self.lstm(d_embedded, hidden) # hiddens: B * T * hidden_size
+        decoded = F.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)), self.embed.weight) 
+        return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens # decoded: B * T * vocab_size
+
+
+class LSTMHingeOutEmbModel(nn.Module):
+    def __init__(self, args):
+        super(LSTMHingeOutEmbModel, self).__init__()
+        self.nhid = args.hidden_size
+        self.nlayers = args.num_layers
+        self.embed = nn.Embedding(args.vocab_size, args.embedding_size)
+        self.lstm = LSTM(args.embedding_size, args.hidden_size)
+        self.out_embed = Parameter(torch.Tensor(args.vocab_size, args.hidden_size))
+        
+        self.embed.weight.data.uniform_(-0.1, 0.1)
+        self.out_embed.data.uniform_(-0.1, 0.1)
+    def init_hidden(self, bsz):
+        weight = next(self.parameters()).data
+        return (Variable(weight.new(bsz, self.nhid).zero_()),
+                Variable(weight.new(bsz, self.nhid).zero_()))
+
+    def forward(self, d, hidden):
+        d_embedded = self.embed(d)
+        forgetgates, hiddens, cellgates, output = self.lstm(d_embedded, hidden) # hiddens: B * T * hidden_size
+        decoded = F.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)), self.embed.weight) 
+        return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens # decoded: B * T * vocab_size

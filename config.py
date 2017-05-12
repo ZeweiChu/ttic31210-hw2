@@ -36,8 +36,14 @@ def get_args():
 
     parser.add_argument('--model',
                         type=str,
-                        default="WordAveragingModel",
+                        default="HingeModelCriterion",
+                        help='choose the loss criterion')
+
+    parser.add_argument('--criterion',
+                        type=str,
+                        default="LSTMModel",
                         help='choose the model')
+    
 
     parser.add_argument('--check_att',
                         type=bool,
