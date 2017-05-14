@@ -71,7 +71,7 @@ class LSTM(nn.Module):
             forgetgate = F.sigmoid(forgetgate)
             forgetgates.append(forgetgate)
             cellgate = F.tanh(cellgate)
-            cellgates.append(cellgate)
+            cellgates.append(cellgate.unsqueeze(1))
             outgate = F.sigmoid(outgate)
             outgates.append(outgate)
 
@@ -80,6 +80,7 @@ class LSTM(nn.Module):
             hiddens.append(hx.unsqueeze(1))
 
         hiddens = torch.cat(hiddens, 1)
+        cellgates = torch.cat(cellgates, 1)
         return forgetgates, hiddens, cellgates, outgate
 
 class LSTMModel(nn.Module):
@@ -159,3 +160,45 @@ class LSTMHingeOutEmbModel(nn.Module):
         forgetgates, hiddens, cellgates, output = self.lstm(d_embedded, hidden) # hiddens: B * T * hidden_size
         decoded = F.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)), self.embed.weight) 
         return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens # decoded: B * T * vocab_size
+
+
+class EncoderDecoderModel(nn.Module):
+    def __init__(self, args):
+        super(EncoderDecoderModel, self).__init__()
+        self.nhid = args.hidden_size
+        self.nlayers = args.num_layers
+
+        self.embed = nn.Embedding(args.vocab_size, args.embedding_size)
+        self.encoder = LSTM(args.embedding_size, args.hidden_size)
+        self.decoder = LSTM(args.embedding_size, args.hidden_size)
+
+        self.linear = nn.Linear(self.nhid, args.vocab_size)
+        self.linear.bias.data.fill_(0)
+        self.linear.weight.data.uniform_(-0.1, 0.1)
+
+        self.embed.weight.data.uniform_(-0.1, 0.1)
+
+    def init_hidden(self, bsz):
+        weight = next(self.parameters()).data
+        return (Variable(weight.new(bsz, self.nhid).zero_()),
+                Variable(weight.new(bsz, self.nhid).zero_()))
+
+    def forward(self, x, x_mask, y, hidden):
+        x_embedded = self.embed(x)
+        y_embedded = self.embed(y)
+
+        # encoder
+        forgetgates, hiddens, cellgates, output = self.encoder(x_embedded, hidden)
+        x_lengths = torch.sum(x_mask, 1).view(x.size(0), 1, 1) - 1
+        x_lengths = x_lengths.expand(x.size(0), 1, x_embedded.size(2))
+        hiddens = hiddens.gather(1, x_lengths).view(x.size(0), self.nhid)
+        cellgates = cellgates.gather(1, x_lengths).view(x.size(0), self.nhid)
+
+        # decoder
+        forgetgates, hiddens, cellgates, output = self.decoder(y_embedded, hx=(hiddens, cellgates))
+
+        # output layer
+        decoded = self.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)))
+        decoded = F.log_softmax(decoded)
+        return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens
+

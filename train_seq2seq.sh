@@ -1,0 +1,1 @@
+python main_seq2seq.py --train_file data/bobsue.seq2seq.train.tsv --dev_file data/bobsue.seq2seq.dev.tsv --test_file data/bobsue.seq2seq.test.tsv --batch_size 128 --num_epoches 50 --model_file model_seq2seq.th --model EncoderDecoderModel --criterion LanguageModelCriterion --learning_rate 0.01 --embedding_size 256 --hidden_size 256 --eval_epoch 1 

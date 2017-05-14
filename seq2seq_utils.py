@@ -12,7 +12,8 @@ def load_data(in_file):
     f = open(in_file, 'r')
     line = f.readline()
     while line != "": 
-        sentences.append(line.strip().split() )
+        line = line.strip().split("\t")
+        sentences.append([line[0].split(), line[1].split()])
         line = f.readline()
     f.close()
     return sentences
@@ -43,13 +44,14 @@ def encode(sentences, word_dict, sort_by_len=True):
     out_sentences = []
 
     for idx, sentence in enumerate(sentences):
-        seq = [word_dict[w] if w in word_dict else 0 for w in sentence]
-        if len(seq) > 0:
-            out_sentences.append(seq)
+        seq0 = [word_dict[w] if w in word_dict else 0 for w in sentence[0]]
+        seq1 = [word_dict[w] if w in word_dict else 0 for w in sentence[1]]
+        if len(seq0) > 0:
+            out_sentences.append([seq0, seq1])
 
     def len_argsort(seq):
-        return sorted(range(len(seq)), key=lambda x: len(seq[x]))
-
+        return sorted(range(len(seq)), key=lambda x: len(seq[x][0]))
+       
     if sort_by_len:
         # sort by the document length
         sorted_index = len_argsort(out_sentences)
@@ -66,16 +68,22 @@ def get_minibatches(n, minibatch_size, shuffle=False):
     return minibatches
 
 def prepare_data(seqs):
-    lengths = [len(seq) for seq in seqs]
+    lengths0 = [len(seq[0]) for seq in seqs]
+    lengths1 = [len(seq[1]) for seq in seqs]
     n_samples = len(seqs)
-
-    max_len = np.max(lengths)
-    x = np.zeros((n_samples, max_len)).astype('int32')
-    x_mask = np.zeros((n_samples, max_len)).astype('float32')
+    max_len0 = np.max(lengths0)
+    max_len1 = np.max(lengths1)
+    x = np.zeros((n_samples, max_len0)).astype('int32')
+    x_mask = np.zeros((n_samples, max_len0)).astype('float32')
+    y = np.zeros((n_samples, max_len1)).astype('int32')
+    y_mask = np.zeros((n_samples, max_len1)).astype('float32')
     for idx, seq in enumerate(seqs):
-        x[idx, :lengths[idx]] = seq
-        x_mask[idx, :lengths[idx]] = 1.0
-    return x, x_mask
+        x[idx, :lengths0[idx]] = seq[0]
+        x_mask[idx, :lengths0[idx]] = 1.0
+        y[idx, :lengths1[idx]] = seq[1]
+        y_mask[idx, :lengths1[idx]] = 1.0
+    return x, x_mask, y, y_mask
+  
 
 
 def gen_examples(sentences, batch_size):
@@ -83,8 +91,8 @@ def gen_examples(sentences, batch_size):
     all_ex = []
     for minibatch in minibatches:
         mb_sentences = [sentences[t] for t in minibatch]
-        mb_s, mb_mask = prepare_data(mb_sentences)
-        all_ex.append((mb_s, mb_mask))
+        mb_x, mb_x_mask, mb_y, mb_y_mask = prepare_data(mb_sentences)
+        all_ex.append((mb_x, mb_x_mask, mb_y, mb_y_mask))
     return all_ex
 
 
