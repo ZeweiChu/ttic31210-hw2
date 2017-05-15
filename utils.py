@@ -4,6 +4,7 @@ from collections import Counter
 import itertools
 import torch.nn as nn
 import torch
+from torch.autograd import Variable
 import code
 
 def load_data(in_file):
@@ -112,11 +113,21 @@ class HingeModelCriterion(nn.Module):
         super(HingeModelCriterion, self).__init__()
 
     def forward(self, input, target, mask):
-        input = input.view(input.size(0)*input.size(1), input.size(2))
+        B, T, num_sampled = input.size()
+        input = input.view(B*T, num_sampled)
         target = target.view(target.size(0)*target.size(1), 1)
         correct = input.gather(1, target).expand_as(input)
-        loss = torch.sum(torch.sum(torch.max(input + 1  - correct, 0)[0], 1) - 1) / torch.sum(mask)
+        
+        
+        input = torch.cat([(input + 1  - correct).unsqueeze(2), \
+            Variable(input.data.new(input.size()).zero_().unsqueeze(2))], 2)
+        input = torch.max(input, 2)[0].squeeze(2)
+        
+        mask = to_contiguous(mask).view(B*T).unsqueeze(1).expand_as(input)
+        # code.interact(local=locals())
+        loss = torch.sum(torch.sum(input * mask, 1) - 1) / torch.sum(mask)
 
         return loss
+
 
         

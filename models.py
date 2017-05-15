@@ -166,33 +166,50 @@ class LSTMHingeOutEmbNegModel(nn.Module):
         super(LSTMHingeOutEmbNegModel, self).__init__()
         self.nhid = args.hidden_size
         self.nlayers = args.num_layers
-        self.window_size = args.window_size
+        self.num_sampled = args.num_sampled
         self.vocab_size = args.vocab_size
 
         self.embed = nn.Embedding(args.vocab_size, args.embedding_size)
         self.lstm = LSTM(args.embedding_size, args.hidden_size)
-        self.out_embed = nn.Embedding(args.vocab_size, args.embedding_size)
+        self.out_embed = nn.Embedding(args.vocab_size, args.hidden_size)
         
         self.embed.weight.data.uniform_(-0.1, 0.1)
-        self.out_embed.data.uniform_(-0.1, 0.1)
+        self.out_embed.weight.data.uniform_(-0.1, 0.1)
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
         return (Variable(weight.new(bsz, self.nhid).zero_()),
                 Variable(weight.new(bsz, self.nhid).zero_()))
 
-    def forward(self, d, hidden):
+    def forward(self, d, hidden, output):
+        B, T = d.size()
+        d_embedded = self.embed(d)
+        # code.interact(local=locals())
+        forgetgates, hiddens, cellgates, output = self.lstm(d_embedded, hidden) # hiddens: B * T * hidden_size
+        
+        # negative sampling
+        noise = Variable(torch.Tensor(B * T, self.num_sampled).uniform_(0, self.vocab_size-1).long())
+        noise = self.out_embed(noise) # (B * T) * num_sampled * nhid
+
+        decoded = torch.bmm(noise, hiddens.view(B*T, self.nhid, 1)).squeeze(2) # (B * T) * num_sampled
+
+        out_embed = self.out_embed(output)
+        out = torch.bmm(out_embed.view(B*T, self.nhid), hiddens.view(B*T, self.n_hid, 1))
+        decoded = torch.cat([out_embed, decoded], 1)
+
+        return decoded.view(B, T, self.num_sampled+1), hiddens # decoded: B * T * vocab_size
+
+    def predict(self, d, hidden):
         B, T = d.size()
         d_embedded = self.embed(d)
         forgetgates, hiddens, cellgates, output = self.lstm(d_embedded, hidden) # hiddens: B * T * hidden_size
         
         # negative sampling
-        noise = Variable(torch.Tensor(B * self.window_size, num_sampled).uniform_(0, self.vocab_size-1).long())
-        noise = self.out_embed(noise).neg
+        # code.interact(local=locals())
+        noise = Variable(torch.arange(0, self.vocab_size).long()).unsqueeze(0).expand(B*T, self.vocab_size)
+        noise = self.out_embed(noise) # (B * T) * num_sampled * nhid
 
-
-
-        decoded = F.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)), self.out_embed) 
-        return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens # decoded: B * T * vocab_size
+        decoded = torch.bmm(noise, hiddens.view(B*T, self.nhid, 1)).squeeze(2) # (B * T) * num_sampled
+        return decoded.view(B, T, self.vocab_size), hiddens # decoded: B * T * vocab_size
 
 
 class EncoderDecoderModel(nn.Module):

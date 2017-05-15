@@ -199,4 +199,9 @@ def get_args():
                         default=1,
                         help='Gradient clipping')
 
+    parser.add_argument('--num_sampled',
+                        type=int,
+                        default=10,
+                        help='number of negative sampling')
+
     return parser.parse_args()

@@ -28,20 +28,22 @@ def eval(model, data, args, crit):
 		mb_out = Variable(torch.from_numpy(mb_s[:, 1:]), volatile=True).long()
 		mb_out_mask = Variable(torch.from_numpy(mb_mask[:, 1:]), volatile=True)
 		hidden = model.init_hidden(batch_size)
-		mb_pred, hidden = model(mb_input, hidden)
 
-		# code.interact(local=locals())
-
-		num_words = torch.sum(mb_out_mask).data[0]
-		loss += crit(mb_pred, mb_out, mb_out_mask).data[0] * num_words
-
+		if args.model == "LSTMHingeOutEmbNegModel":
+			mb_pred, hidden = model.predict(mb_input, hidden)
+			num_words = torch.sum(mb_out_mask).data[0]
+			loss += 0.
+		else:
+			mb_pred, hidden = model(mb_input, hidden)
+			num_words = torch.sum(mb_out_mask).data[0]
+			loss += crit(mb_pred, mb_out, mb_out_mask).data[0] * num_words
 		total_num_words += num_words
 
 		mb_pred = torch.max(mb_pred.view(mb_pred.size(0) * mb_pred.size(1), mb_pred.size(2)), 1)[1]
 		correct = (mb_pred == mb_out).float()
 		# code.interact(local=locals())
 		correct_count += torch.sum(correct * mb_out_mask.contiguous().view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)).data[0]
-		# bar.update(idx+1)
+			# bar.update(idx+1)
 
 	# bar.finish()
 	return correct_count, loss, total_num_words
@@ -127,9 +129,14 @@ def main(args):
 			mb_out = Variable(torch.from_numpy(mb_s[:, 1:])).long()
 			mb_out_mask = Variable(torch.from_numpy(mb_mask[:, 1:]))
 			hidden = model.init_hidden(batch_size)
-			mb_pred, hidden = model(mb_input, hidden)
-
-			loss = crit(mb_pred, mb_out, mb_out_mask)
+			if args.model == "LSTMHingeOutEmbNegModel":
+				
+				mb_pred, hidden = model(mb_input, hidden, mb_out)
+				mb_out = Variable(mb_pred.data.new(mb_pred.size(0), mb_pred.size(1)).zero_())
+				loss = crit(mb_prsed, mb_out, mb_out_mask)
+			else:
+				mb_pred, hidden = model(mb_input, hidden)
+				loss = crit(mb_pred, mb_out, mb_out_mask)
 			num_words = torch.sum(mb_out_mask).data[0]
 			total_train_loss += loss.data[0] * num_words
 			# code.interact(local=locals())
