@@ -41,7 +41,6 @@ def eval(model, data, args, crit):
 		correct = (mb_pred == mb_out).float()
 		# code.interact(local=locals())
 		correct_count += torch.sum(correct * mb_out_mask.contiguous().view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)).data[0]
-		total_num_words += torch.sum(mb_out_mask).data[0]
 		# bar.update(idx+1)
 
 	# bar.finish()
@@ -82,6 +81,8 @@ def main(args):
 		model = LSTMHingeModel(args)
 	elif args.model == "LSTMHingeOutEmbModel":
 		model = LSTMHingeOutEmbModel(args)
+	elif args.model == "LSTMHingeOutEmbNegModel":
+		model = LSTMHingeOutEmbNegModel(args)
 	elif args.model == "LSTMModel":
 		model = LSTMModel(args)
 
@@ -99,7 +100,9 @@ def main(args):
 	acc = correct_count / num_words
 	print("dev loss %s" % (loss) )
 	print("dev accuracy %f" % (acc))
+	print("dev total number of words %f" % (num_words))
 	best_acc = acc
+	prev_acc = acc
 
 	learning_rate = args.learning_rate
 	if args.optimizer == "SGD":
@@ -134,6 +137,8 @@ def main(args):
 	
 			optimizer.zero_grad()
 			loss.backward()
+
+			nn.utils.clip_grad_norm(model.parameters(), args.grad_clipping)
 			optimizer.step()
 			# print(loss.data[0])
 			bar.update(num_batches * (epoch % args.eval_epoch) + idx +1)
@@ -152,6 +157,7 @@ def main(args):
 			acc = correct_count / num_words
 			print("dev loss %s" % (loss) )
 			print("dev accuracy %f" % (acc))
+			print("dev total number of words %f" % (num_words))
 
 			if acc > best_acc:
 				torch.save(model, args.model_file)
@@ -161,12 +167,13 @@ def main(args):
 				# infos['vocab']
 
 				print("model saved...")
-			else:
+			elif acc < prev_acc:
 				learning_rate *= 0.5
 				if args.optimizer == "SGD":
 					optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 				elif args.optimizer == "Adam":
 					optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+			acc = prev_acc
 
 			print("best dev accuracy: %f" % best_acc)
 			print("#" * 60)

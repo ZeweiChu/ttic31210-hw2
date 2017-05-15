@@ -196,7 +196,7 @@ def get_args():
 
     parser.add_argument('--grad_clipping',
                         type=float,
-                        default=10.0,
+                        default=1,
                         help='Gradient clipping')
 
     return parser.parse_args()

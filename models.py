@@ -158,9 +158,41 @@ class LSTMHingeOutEmbModel(nn.Module):
     def forward(self, d, hidden):
         d_embedded = self.embed(d)
         forgetgates, hiddens, cellgates, output = self.lstm(d_embedded, hidden) # hiddens: B * T * hidden_size
-        decoded = F.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)), self.embed.weight) 
+        decoded = F.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)), self.out_embed) 
         return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens # decoded: B * T * vocab_size
 
+class LSTMHingeOutEmbNegModel(nn.Module):
+    def __init__(self, args):
+        super(LSTMHingeOutEmbNegModel, self).__init__()
+        self.nhid = args.hidden_size
+        self.nlayers = args.num_layers
+        self.window_size = args.window_size
+        self.vocab_size = args.vocab_size
+
+        self.embed = nn.Embedding(args.vocab_size, args.embedding_size)
+        self.lstm = LSTM(args.embedding_size, args.hidden_size)
+        self.out_embed = nn.Embedding(args.vocab_size, args.embedding_size)
+        
+        self.embed.weight.data.uniform_(-0.1, 0.1)
+        self.out_embed.data.uniform_(-0.1, 0.1)
+    def init_hidden(self, bsz):
+        weight = next(self.parameters()).data
+        return (Variable(weight.new(bsz, self.nhid).zero_()),
+                Variable(weight.new(bsz, self.nhid).zero_()))
+
+    def forward(self, d, hidden):
+        B, T = d.size()
+        d_embedded = self.embed(d)
+        forgetgates, hiddens, cellgates, output = self.lstm(d_embedded, hidden) # hiddens: B * T * hidden_size
+        
+        # negative sampling
+        noise = Variable(torch.Tensor(B * self.window_size, num_sampled).uniform_(0, self.vocab_size-1).long())
+        noise = self.out_embed(noise).neg
+
+
+
+        decoded = F.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)), self.out_embed) 
+        return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens # decoded: B * T * vocab_size
 
 
 class EncoderDecoderModel(nn.Module):
