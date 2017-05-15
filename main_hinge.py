@@ -10,6 +10,7 @@ from torch.autograd import Variable
 import torch
 from torch import optim
 from torch.nn import MSELoss
+from tqdm import tqdm
 import progressbar
 import pickle
 import math
@@ -119,10 +120,10 @@ def main(args):
 
 		np.random.shuffle(train_sentences)
 		num_batches = len(train_sentences)
-		bar = progressbar.ProgressBar(max_value= num_batches * args.eval_epoch, redirect_stdout=True)
+		# bar = progressbar.ProgressBar(max_value= num_batches * args.eval_epoch, redirect_stdout=True)
 		total_train_loss = 0.
 		total_num_words = 0.
-		for idx, (mb_s, mb_mask) in enumerate(train_sentences):
+		for idx, (mb_s, mb_mask) in tqdm(enumerate(train_sentences)):
 
 			batch_size = mb_s.shape[0]
 			mb_input = Variable(torch.from_numpy(mb_s[:,:-1])).long()
@@ -132,8 +133,8 @@ def main(args):
 			if args.model == "LSTMHingeOutEmbNegModel":
 				
 				mb_pred, hidden = model(mb_input, hidden, mb_out)
-				mb_out = Variable(mb_pred.data.new(mb_pred.size(0), mb_pred.size(1)).zero_())
-				loss = crit(mb_prsed, mb_out, mb_out_mask)
+				mb_out = Variable(mb_pred.data.new(mb_pred.size(0), mb_pred.size(1)).zero_()).long()
+				loss = crit(mb_pred, mb_out, mb_out_mask)
 			else:
 				mb_pred, hidden = model(mb_input, hidden)
 				loss = crit(mb_pred, mb_out, mb_out_mask)
@@ -148,9 +149,9 @@ def main(args):
 			nn.utils.clip_grad_norm(model.parameters(), args.grad_clipping)
 			optimizer.step()
 			# print(loss.data[0])
-			bar.update(num_batches * (epoch % args.eval_epoch) + idx +1)
+			# bar.update(num_batches * (epoch % args.eval_epoch) + idx +1)
 		
-		bar.finish()
+		# bar.finish()
 		print("training loss: %f" % (total_train_loss / total_num_words))
 
 		if (epoch+1) % args.eval_epoch == 0:

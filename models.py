@@ -193,8 +193,9 @@ class LSTMHingeOutEmbNegModel(nn.Module):
         decoded = torch.bmm(noise, hiddens.view(B*T, self.nhid, 1)).squeeze(2) # (B * T) * num_sampled
 
         out_embed = self.out_embed(output)
-        out = torch.bmm(out_embed.view(B*T, self.nhid), hiddens.view(B*T, self.n_hid, 1))
-        decoded = torch.cat([out_embed, decoded], 1)
+        # code.interact(local=locals())
+        out = torch.bmm(out_embed.view(B*T, 1, self.nhid), hiddens.view(B*T, self.nhid, 1)).squeeze(2)
+        decoded = torch.cat([out, decoded], 1)
 
         return decoded.view(B, T, self.num_sampled+1), hiddens # decoded: B * T * vocab_size
 
