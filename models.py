@@ -266,23 +266,49 @@ class BiEncoderDecoderModel(nn.Module):
         return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens
 
 
-class BOWEncoderDecoder(nn.Module):
+class BOWEncoderDecoderModel(nn.Module):
     def __init__(self, args):
-        super(BOWEncoderDecoder, self).__init__()
+        super(BOWEncoderDecoderModel, self).__init__()
         self.embedding_size = args.embedding_size
         self.nhid = args.hidden_size
         self.vocab_size = args.vocab_size
 
         self.embed = nn.Embedding(args.vocab_size, args.embedding_size)
-        self.encoder = BOWEncoder(args)
-        self.h_linear = nn.Linear(self.nhid, args.vocab_size)
+        self.h_linear = nn.Linear(self.embedding_size, self.nhid)
+        self.c_linear = nn.Linear(self.embedding_size, self.nhid)
+        self.decoder = LSTM(args.embedding_size, args.hidden_size)
+        self.linear = nn.Linear(self.nhid, args.vocab_size) # output decoding layer
+        self.linear.bias.data.fill_(0)
+        self.linear.weight.data.uniform_(-0.1, 0.1)
 
-    def forward(self, x, mask):
+
+        self.h_linear.bias.data.fill_(0)
+        self.h_linear.weight.data.uniform_(-0.1, 0.1)
+        self.c_linear.bias.data.fill_(0)
+        self.c_linear.weight.data.uniform_(-0.1, 0.1)
+
+        self.embed.weight.data.uniform_(-0.1, 0.1)
+
+    def init_hidden(self, bsz):
+        weight = next(self.parameters()).data
+        return (Variable(weight.new(bsz, self.nhid).zero_()),
+                Variable(weight.new(bsz, self.nhid).zero_()))
+
+    def forward(self, x, x_mask, y, hidden):
         x_embedded = self.embed(x)
-        mask_3d = mask.unsqueeze(2).expand_as(x_embedded)
+        y_embedded = self.embed(y)
+        mask_3d = x_mask.unsqueeze(2).expand_as(x_embedded)
         x_embedded[mask_3d == 0] = 0.
-        x_avg = torch.sum(x_embedded, 1).squeeze(1) / torch.sum(mask_3d, 1).squeeze(1)
-        return x_avg
+        x_avg = torch.sum(x_embedded, 1).squeeze(1) / torch.sum(mask_3d, 1).squeeze(1).float()
+        
+        hidden = self.h_linear(x_avg)
+        cell = self.c_linear(x_avg)
+
+        forgetgates, hiddens, cellgates, output = self.decoder(y_embedded, hx=(hidden, cell))
+        decoded = self.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)))
+        decoded = F.log_softmax(decoded)
+        return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens
+
 
 
 

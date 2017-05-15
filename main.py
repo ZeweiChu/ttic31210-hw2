@@ -17,6 +17,7 @@ import math
 def eval(model, data, args, crit):
 	total_dev_batches = len(data)
 	correct_count = 0.
+	# total_count = 0.
 	# bar = progressbar.ProgressBar(max_value=total_dev_batches).start()
 	loss = 0.
 	total_num_words = 0.
@@ -39,7 +40,6 @@ def eval(model, data, args, crit):
 		correct = (mb_pred == mb_out).float()
 		# code.interact(local=locals())
 		correct_count += torch.sum(correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)).data[0]
-		total_num_words += torch.sum(mb_out_mask).data[0]
 		# bar.update(idx+1)
 
 	# bar.finish()
@@ -103,6 +103,7 @@ def main(args):
 	acc = correct_count / num_words
 	print("loss %s" % (loss) )
 	print("accuracy %f" % (acc))
+	print("total number of words %f" % (num_words))
 	best_acc = acc
 
 	learning_rate = args.learning_rate
@@ -154,6 +155,7 @@ def main(args):
 			acc = correct_count / num_words
 			print("dev loss %s" % (loss) )
 			print("dev accuracy %f" % (acc))
+			print("dev total number of words %f" % (num_words))
 
 			if acc > best_acc:
 				torch.save(model, args.model_file)
@@ -179,6 +181,7 @@ def main(args):
 	acc = correct_count / num_words
 	print("test loss %s" % (loss) )
 	print("test accuracy %f" % (acc))
+	print("test total number of words %f" % (num_words))
 
 
 if __name__ == "__main__":
