@@ -202,3 +202,47 @@ class EncoderDecoderModel(nn.Module):
         decoded = F.log_softmax(decoded)
         return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens
 
+
+class BiEncoderDecoderModel(nn.Module):
+    def __init__(self, args):
+        super(EncoderDecoderModel, self).__init__()
+        self.nhid = args.hidden_size
+        self.nlayers = args.num_layers
+
+        self.embed = nn.Embedding(args.vocab_size, args.embedding_size)
+        self.fencoder = LSTM(args.embedding_size, args.hidden_size/2)
+        self.bencoder = LSTM(args.embedding_size, args.hidden_size/2)
+        self.decoder = LSTM(args.embedding_size, args.hidden_size)
+
+        self.linear = nn.Linear(self.nhid, args.vocab_size)
+        self.linear.bias.data.fill_(0)
+        self.linear.weight.data.uniform_(-0.1, 0.1)
+
+        self.embed.weight.data.uniform_(-0.1, 0.1)
+
+    def init_hidden(self, bsz):
+        weight = next(self.parameters()).data
+        return (Variable(weight.new(bsz, self.nhid/2).zero_()),
+                Variable(weight.new(bsz, self.nhid/2).zero_()))
+
+    def forward(self, x, x_mask, y, hidden):
+        x_embedded = self.embed(x)
+        y_embedded = self.embed(y)
+
+        # encoder
+        forgetgates, hiddens, cellgates, output = self.encoder(x_embedded, hidden)
+        x_lengths = torch.sum(x_mask, 1).view(x.size(0), 1, 1) - 1
+        x_lengths = x_lengths.expand(x.size(0), 1, x_embedded.size(2))
+        hiddens = hiddens.gather(1, x_lengths).view(x.size(0), self.nhid)
+        cellgates = cellgates.gather(1, x_lengths).view(x.size(0), self.nhid)
+
+        # decoder
+        forgetgates, hiddens, cellgates, output = self.decoder(y_embedded, hx=(hiddens, cellgates))
+
+        # output layer
+        decoded = self.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)))
+        decoded = F.log_softmax(decoded)
+        return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens
+
+
+
