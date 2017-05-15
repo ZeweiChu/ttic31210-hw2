@@ -184,7 +184,7 @@ class LSTMHingeOutEmbNegModel(nn.Module):
         B, T = d.size()
         d_embedded = self.embed(d)
         # code.interact(local=locals())
-        forgetgates, hiddens, cellgates, output = self.lstm(d_embedded, hidden) # hiddens: B * T * hidden_size
+        forgetgates, hiddens, cellgates, _ = self.lstm(d_embedded, hidden) # hiddens: B * T * hidden_size
         
         # negative sampling
         noise = Variable(torch.Tensor(B * T, self.num_sampled).uniform_(0, self.vocab_size-1).long())
