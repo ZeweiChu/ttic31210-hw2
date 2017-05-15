@@ -162,6 +162,7 @@ class LSTMHingeOutEmbModel(nn.Module):
         return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens # decoded: B * T * vocab_size
 
 
+
 class EncoderDecoderModel(nn.Module):
     def __init__(self, args):
         super(EncoderDecoderModel, self).__init__()
@@ -190,7 +191,7 @@ class EncoderDecoderModel(nn.Module):
         # encoder
         forgetgates, hiddens, cellgates, output = self.encoder(x_embedded, hidden)
         x_lengths = torch.sum(x_mask, 1).view(x.size(0), 1, 1) - 1
-        x_lengths = x_lengths.expand(x.size(0), 1, x_embedded.size(2))
+        x_lengths = x_lengths.expand(x.size(0), 1, hiddens.size(2))
         hiddens = hiddens.gather(1, x_lengths).view(x.size(0), self.nhid)
         cellgates = cellgates.gather(1, x_lengths).view(x.size(0), self.nhid)
 
@@ -205,7 +206,7 @@ class EncoderDecoderModel(nn.Module):
 
 class BiEncoderDecoderModel(nn.Module):
     def __init__(self, args):
-        super(EncoderDecoderModel, self).__init__()
+        super(BiEncoderDecoderModel, self).__init__()
         self.nhid = args.hidden_size
         self.nlayers = args.num_layers
 
@@ -223,18 +224,38 @@ class BiEncoderDecoderModel(nn.Module):
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
         return (Variable(weight.new(bsz, self.nhid/2).zero_()),
+                Variable(weight.new(bsz, self.nhid/2).zero_())), (Variable(weight.new(bsz, self.nhid/2).zero_()),
                 Variable(weight.new(bsz, self.nhid/2).zero_()))
+
 
     def forward(self, x, x_mask, y, hidden):
         x_embedded = self.embed(x)
         y_embedded = self.embed(y)
 
+        B, T = x.size()
+        rev_index = torch.range(T-1, 0, -1).view(1,-1).expand(B, T).long()
+        mask_length = torch.sum(1-x_mask.data, 1).long().expand_as(rev_index)
+        rev_index -= mask_length
+        rev_index[rev_index < 0] = 0
+        rev_index = Variable(rev_index)
+
+        x_backward = Variable(x.data.new(x.data.size()).fill_(0))
+        x_backward.scatter_(1, rev_index, x)
+        x_backward_embedded = self.embed(x_backward)
+
         # encoder
-        forgetgates, hiddens, cellgates, output = self.encoder(x_embedded, hidden)
+        f_forgetgates, f_hiddens, f_cellgates, f_output = self.fencoder(x_embedded, hidden[0])
+        b_forgetgates, b_hiddens, b_cellgates, b_output = self.bencoder(x_backward_embedded, hidden[1])
         x_lengths = torch.sum(x_mask, 1).view(x.size(0), 1, 1) - 1
-        x_lengths = x_lengths.expand(x.size(0), 1, x_embedded.size(2))
-        hiddens = hiddens.gather(1, x_lengths).view(x.size(0), self.nhid)
-        cellgates = cellgates.gather(1, x_lengths).view(x.size(0), self.nhid)
+        x_lengths = x_lengths.expand(x.size(0), 1, f_hiddens.size(2))
+        # code.interact(local=locals())
+        f_hiddens = f_hiddens.gather(1, x_lengths).view(x.size(0), self.nhid/2)
+        f_cellgates = f_cellgates.gather(1, x_lengths).view(x.size(0), self.nhid/2)
+        b_hiddens = b_hiddens.gather(1, x_lengths).view(x.size(0), self.nhid/2)
+        b_cellgates = b_cellgates.gather(1, x_lengths).view(x.size(0), self.nhid/2)
+
+        hiddens = torch.cat([f_hiddens, b_hiddens], 1)
+        cellgates = torch.cat([f_cellgates, b_cellgates], 1)
 
         # decoder
         forgetgates, hiddens, cellgates, output = self.decoder(y_embedded, hx=(hiddens, cellgates))
@@ -243,6 +264,25 @@ class BiEncoderDecoderModel(nn.Module):
         decoded = self.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)))
         decoded = F.log_softmax(decoded)
         return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens
+
+
+class BOWEncoderDecoder(nn.Module):
+    def __init__(self, args):
+        super(BOWEncoderDecoder, self).__init__()
+        self.embedding_size = args.embedding_size
+        self.nhid = args.hidden_size
+        self.vocab_size = args.vocab_size
+
+        self.embed = nn.Embedding(args.vocab_size, args.embedding_size)
+        self.encoder = BOWEncoder(args)
+        self.h_linear = nn.Linear(self.nhid, args.vocab_size)
+
+    def forward(self, x, mask):
+        x_embedded = self.embed(x)
+        mask_3d = mask.unsqueeze(2).expand_as(x_embedded)
+        x_embedded[mask_3d == 0] = 0.
+        x_avg = torch.sum(x_embedded, 1).squeeze(1) / torch.sum(mask_3d, 1).squeeze(1)
+        return x_avg
 
 
 

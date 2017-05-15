@@ -83,6 +83,8 @@ def main(args):
 		model = torch.load(args.model_file)
 	elif args.model == "EncoderDecoderModel":
 		model = EncoderDecoderModel(args)
+	elif args.model == "BiEncoderDecoderModel":
+		model = BiEncoderDecoderModel(args)
 
 
 
