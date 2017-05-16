@@ -115,6 +115,7 @@ def main(args):
 	elif args.optimizer == "Adam":
 		optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 	# best_loss = loss
+	flog = open(args.log_file, "w")
 
 	total_num_sentences = 0.
 	total_time = 0.
@@ -189,6 +190,8 @@ def main(args):
 			print("best dev accuracy: %f" % best_acc)
 			print("#" * 60)
 
+			flog.write("%f\t%f\t%f\t%f\t%f\n"%(total_time, total_num_sentences, best_acc, acc, loss))
+
 
 
 	correct_count, loss, num_words = eval(model, train_sentences, args, crit)
@@ -209,6 +212,8 @@ def main(args):
 	print("test loss %s" % (loss) )
 	print("test accuracy %f" % (acc))
 
+
+	flog.close()
 
 if __name__ == "__main__":
 	args = config.get_args()

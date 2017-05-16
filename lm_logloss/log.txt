@@ -1,1 +1,22 @@
-100.401932	60360.000000	0.332663
+9.961212	6036.000000	0.304260	0.304260	3.640477
+19.966513	12072.000000	0.318210	0.318210	3.505755
+ground truth: <s>, predicted: ., number: 571\\
+ground truth: <s>, predicted: Bob, number: 378\\
+ground truth: He, predicted: Bob, number: 158\\
+ground truth: Sue, predicted: Bob, number: 100\\
+ground truth: She, predicted: Bob, number: 96\\
+ground truth: <s>, predicted: he, number: 95\\
+ground truth: and, predicted: ., number: 64\\
+ground truth: had, predicted: was, number: 55\\
+ground truth: his, predicted: the, number: 51\\
+ground truth: to, predicted: ., number: 47\\
+ground truth: he, predicted: she, number: 41\\
+ground truth: ., predicted: to, number: 33\\
+ground truth: decided, predicted: was, number: 33\\
+ground truth: a, predicted: the, number: 31\\
+ground truth: her, predicted: the, number: 29\\
+ground truth: went, predicted: was, number: 29\\
+ground truth: The, predicted: Bob, number: 28\\
+ground truth: didn, predicted: was, number: 28\\
+ground truth: got, predicted: was, number: 26\\
+ground truth: They, predicted: Bob, number: 25\\

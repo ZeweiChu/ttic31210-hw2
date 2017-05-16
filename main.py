@@ -111,17 +111,7 @@ def main(args):
 
 	print("start evaluating on dev...")
 
-	err = Counter()
-	correct_count, loss, num_words = eval(model, dev_sentences, args, crit, err=err)
-	if err != None:
-		err = err.most_common()[:20]
-		word_dict_rev = {v: k for k, v in word_dict.iteritems()}
-		for pair in err:
-			p = pair[0].split(",")
-			pg = word_dict_rev[int(p[0])]
-			pp = word_dict_rev[int(p[1])]
-			print("ground truth: " + pg + ", predicted: " + pp + ", number: " + str(pair[1]) + "\\\\")
-		# code.interact(local=locals())
+	correct_count, loss, num_words = eval(model, dev_sentences, args, crit)
 
 	loss = loss / num_words
 	acc = correct_count / num_words
@@ -201,8 +191,8 @@ def main(args):
 			print("best dev accuracy: %f" % best_acc)
 			print("#" * 60)
 
-	flog.write("%f\t%f\t%f\n"%(total_time, total_num_sentences, best_acc, acc, loss))
-	flog.close()
+			flog.write("%f\t%f\t%f\t%f\t%f\n"%(total_time, total_num_sentences, best_acc, acc, loss))
+	
 
 	print("#sents/sec: %f" % (total_num_sentences/total_time) )
 	test_sentences = utils.load_data(args.test_file)
@@ -217,6 +207,18 @@ def main(args):
 	print("test total number of words %f" % (num_words))
 
 
+	err = Counter()
+	correct_count, loss, num_words = eval(model, dev_sentences, args, crit, err=err)
+	if err != None:
+		err = err.most_common()[:20]
+		word_dict_rev = {v: k for k, v in word_dict.iteritems()}
+		for pair in err:
+			p = pair[0].split(",")
+			pg = word_dict_rev[int(p[0])]
+			pp = word_dict_rev[int(p[1])]
+			flog.write("ground truth: " + pg + ", predicted: " + pp + ", number: " + str(pair[1]) + "\\\\\n")
+
+	flog.close()
 if __name__ == "__main__":
 	args = config.get_args()
 	main(args)
