@@ -187,6 +187,14 @@ def main(args):
 			print("#" * 60)
 
 
+
+	correct_count, loss, num_words = eval(model, train_sentences, args, crit)
+	loss = loss / num_words
+	acc = correct_count / num_words
+	print("train loss %s" % (loss) )
+	print("train accuracy %f" % (acc))
+
+	model = torch.load(args.model_file)
 	test_sentences = utils.load_data(args.test_file)
 	args.num_test = len(test_sentences)
 	test_sentences = utils.encode(test_sentences, word_dict)
@@ -196,14 +204,6 @@ def main(args):
 	acc = correct_count / num_words
 	print("test loss %s" % (loss) )
 	print("test accuracy %f" % (acc))
-
-
-
-	correct_count, loss, num_words = eval(model, train_sentences, args, crit)
-	loss = loss / num_words
-	acc = correct_count / num_words
-	print("train loss %s" % (loss) )
-	print("train accuracy %f" % (acc))
 
 
 if __name__ == "__main__":

@@ -10,11 +10,13 @@ from torch.autograd import Variable
 import torch
 from torch import optim
 from torch.nn import MSELoss
+from tqdm import tqdm
 import progressbar
 import pickle
 import math
+from collections import Counter
 
-def eval(model, data, args, crit):
+def eval(model, data, args, crit, err=None):
 	total_dev_batches = len(data)
 	correct_count = 0.
 	# total_count = 0.
@@ -37,9 +39,22 @@ def eval(model, data, args, crit):
 		total_num_words += num_words
 
 		mb_pred = torch.max(mb_pred.view(mb_pred.size(0) * mb_pred.size(1), mb_pred.size(2)), 1)[1]
+		mb_out = mb_out.view_as(mb_pred)
 		correct = (mb_pred == mb_out).float()
+		correct = correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)
+		if err != None:
+			corr = correct.data.numpy().reshape(-1)
+			mb_pred = mb_pred.data.numpy().reshape(-1)
+			mb_out = mb_out.data.numpy().reshape(-1)
+			for i in range(corr.shape[0]):
+				if corr[i] == 0:
+					# if "<" + str(mb_out[i]) + "," + str(mb_pred[i]) + ">" in err:
+					err[str(mb_out[i]) + "," + str(mb_pred[i])] += 1
+					# else:
+					# 	err["<" + str(mb_out[i]) + "," + str(mb_pred[i]) + ">"] = 1
+			# code.interact(local=locals())
 		# code.interact(local=locals())
-		correct_count += torch.sum(correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)).data[0]
+		correct_count += torch.sum(correct).data[0]
 		# bar.update(idx+1)
 
 	# bar.finish()
@@ -70,9 +85,6 @@ def main(args):
 	dev_sentences = utils.encode(dev_sentences, word_dict)
 	dev_sentences = utils.gen_examples(dev_sentences, args.batch_size)
 
-	# code.interact(local=locals())
-	
-	att_dict = {}
 
 	if os.path.exists(args.model_file):
 		model = torch.load(args.model_file)
@@ -97,7 +109,17 @@ def main(args):
 
 	print("start evaluating on dev...")
 
-	correct_count, loss, num_words = eval(model, dev_sentences, args, crit)
+	err = Counter()
+	correct_count, loss, num_words = eval(model, dev_sentences, args, crit, err=err)
+	if err != None:
+		err = err.most_common()[:20]
+		word_dict_rev = {v: k for k, v in word_dict.iteritems()}
+		for pair in err:
+			p = pair[0].split(",")
+			pg = word_dict_rev[int(p[0])]
+			pp = word_dict_rev[int(p[1])]
+			print("ground truth: " + pg + ", predicted: " + pp + ", number: " + str(pair[1]) + "\\\\")
+		# code.interact(local=locals())
 
 	loss = loss / num_words
 	acc = correct_count / num_words
@@ -118,10 +140,10 @@ def main(args):
 
 		np.random.shuffle(train_sentences)
 		num_batches = len(train_sentences)
-		bar = progressbar.ProgressBar(max_value= num_batches * args.eval_epoch, redirect_stdout=True)
+		# bar = progressbar.ProgressBar(max_value= num_batches * args.eval_epoch, redirect_stdout=True)
 		total_train_loss = 0.
 		total_num_words = 0.
-		for idx, (mb_s, mb_mask) in enumerate(train_sentences):
+		for idx, (mb_s, mb_mask) in tqdm(enumerate(train_sentences)):
 
 			batch_size = mb_s.shape[0]
 			mb_input = Variable(torch.from_numpy(mb_s[:,:-1])).long()
@@ -139,9 +161,9 @@ def main(args):
 			loss.backward()
 			optimizer.step()
 			# print(loss.data[0])
-			bar.update(num_batches * (epoch % args.eval_epoch) + idx +1)
+			# bar.update(num_batches * (epoch % args.eval_epoch) + idx +1)
 		
-		bar.finish()
+		# bar.finish()
 		print("training loss: %f" % (total_train_loss / total_num_words))
 
 		if (epoch+1) % args.eval_epoch == 0:

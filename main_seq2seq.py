@@ -14,8 +14,10 @@ import progressbar
 from tqdm import tqdm
 import pickle
 import math
+from collections import Counter
 
-def eval(model, data, args, crit):
+
+def eval(model, data, args, crit, err=None):
 	total_dev_batches = len(data)
 	correct_count = 0.
 	# bar = progressbar.ProgressBar(max_value=total_dev_batches).start()
@@ -42,6 +44,16 @@ def eval(model, data, args, crit):
 
 		mb_pred = torch.max(mb_pred.view(mb_pred.size(0) * mb_pred.size(1), mb_pred.size(2)), 1)[1]
 		correct = (mb_pred == mb_out).float()
+		correct = correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)
+		if err != None:
+			corr = correct.data.numpy().reshape(-1)
+			mb_pred = mb_pred.data.numpy().reshape(-1)
+			mb_out = mb_out.data.numpy().reshape(-1)
+			for i in range(corr.shape[0]):
+				if corr[i] == 0:
+					# if "<" + str(mb_out[i]) + "," + str(mb_pred[i]) + ">" in err:
+					err[str(mb_out[i]) + "," + str(mb_pred[i])] += 1
+		
 		# code.interact(local=locals())
 		correct_count += torch.sum(correct * mb_out_mask.contiguous().view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)).data[0]
 		# bar.update(idx+1)
@@ -76,7 +88,6 @@ def main(args):
 
 	# code.interact(local=locals())
 
-	att_dict = {}
 
 	if os.path.exists(args.model_file):
 		model = torch.load(args.model_file)
@@ -96,7 +107,17 @@ def main(args):
 
 	print("start evaluating on dev...")
 	
-	correct_count, loss, num_words = eval(model, dev_sentences, args, crit)
+	err = Counter()
+	correct_count, loss, num_words = eval(model, dev_sentences, args, crit, err=err)
+	if err != None:
+		err = err.most_common()[:20]
+		word_dict_rev = {v: k for k, v in word_dict.iteritems()}
+		for pair in err:
+			p = pair[0].split(",")
+			pg = word_dict_rev[int(p[0])]
+			pp = word_dict_rev[int(p[1])]
+			print("ground truth: " + pg + ", predicted: " + pp + ", number: " + str(pair[1]) + "\\\\")
+		# code.interact(local=locals())
 
 	loss = loss / num_words
 	acc = correct_count / num_words
