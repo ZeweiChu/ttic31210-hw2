@@ -73,8 +73,9 @@ def main(args):
 	args.num_train = len(train_sentences)
 	args.num_dev = len(dev_sentences)
 
-	word_dict, args.vocab_size = utils.build_dict(train_sentences, max_words=args.vocab_size)
-	word_dict["UNK"] = 0
+	word_dict, args.vocab_size = utils.load_dict(args.vocab_file)
+	# word_dict, args.vocab_size = utils.build_dict(train_sentences, max_words=args.vocab_size)
+	# word_dict["UNK"] = 0
 	
 
 	# pickle.dump(word_dict, open(args.dict_file, "wb"))
@@ -136,6 +137,7 @@ def main(args):
 		optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 	# best_loss = loss
 
+	flog = open(args.log_file, "w")
 	total_num_sentences = 0.
 	total_time = 0.
 	for epoch in range(args.num_epoches):
@@ -199,6 +201,8 @@ def main(args):
 			print("best dev accuracy: %f" % best_acc)
 			print("#" * 60)
 
+	flog.write("%f\t%f\t%f\n"%(total_time, total_num_sentences, best_acc, acc, loss))
+	flog.close()
 
 	print("#sents/sec: %f" % (total_num_sentences/total_time) )
 	test_sentences = utils.load_data(args.test_file)

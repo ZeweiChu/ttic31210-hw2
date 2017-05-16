@@ -72,6 +72,11 @@ def get_args():
                         default=None,
                         help='test file')
 
+    parser.add_argument('--log_file',
+                        type=str,
+                        default=None,
+                        help='log file')
+
     parser.add_argument('--train_pos_file',
                         type=str,
                         default=None,
@@ -92,14 +97,10 @@ def get_args():
                         default=None,
                         help='Pre-trained model.')
 
-    parser.add_argument('--log_file',
-                        type=str,
-                        default=None,
-                        help='Log file')
 
-    parser.add_argument('--dict_file',
+    parser.add_argument('--vocab_file',
                         type=str,
-                        default="dict.pkl",
+                        default="data/bobsue.voc.txt",
                         help='dictionary file')
 
     parser.add_argument('--embedding_file',

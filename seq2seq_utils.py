@@ -37,6 +37,15 @@ def build_dict(sentences, max_words=50000):
     total_words = len(ls) + 1
     return {w[0]: index+1 for (index, w) in enumerate(ls)}, total_words
 
+def load_dict(file):
+    word_dict = {}
+    i = 0
+    with open(file, "r") as f:
+        for line in f:
+            word_dict[line.strip()] = i
+            i += 1
+    return word_dict, i
+
 def encode(sentences, word_dict, sort_by_len=True):
     '''
         Encode the sequences. 

@@ -62,8 +62,9 @@ def main(args):
 	args.num_train = len(train_sentences)
 	args.num_dev = len(dev_sentences)
 
-	word_dict, args.vocab_size = utils.build_dict(train_sentences, max_words=args.vocab_size)
-	word_dict["UNK"] = 0
+	word_dict, args.vocab_size = utils.load_dict(args.vocab_file)
+	# word_dict, args.vocab_size = utils.build_dict(train_sentences, max_words=args.vocab_size)
+	# word_dict["UNK"] = 0
 	
 
 	# pickle.dump(word_dict, open(args.dict_file, "wb"))
