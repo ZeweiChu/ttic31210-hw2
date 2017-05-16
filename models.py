@@ -283,7 +283,7 @@ class BiEncoderDecoderModel(nn.Module):
         y_embedded = self.embed(y)
 
         B, T = x.size()
-        rev_index = torch.range(T-1, 0, -1).view(1,-1).expand(B, T).long()
+        rev_index = torch.arange(T-1, -1, -1).view(1,-1).expand(B, T).long()
         mask_length = torch.sum(1-x_mask.data, 1).long().expand_as(rev_index)
         rev_index -= mask_length
         rev_index[rev_index < 0] = 0
