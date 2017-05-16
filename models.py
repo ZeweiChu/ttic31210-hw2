@@ -190,11 +190,11 @@ class LSTMHingeOutEmbNegModel(nn.Module):
         noise = Variable(torch.Tensor(B * T, self.num_sampled).uniform_(0, self.vocab_size-1).long())
         noise = self.out_embed(noise) # (B * T) * num_sampled * nhid
 
-        decoded = torch.bmm(noise, hiddens.view(B*T, self.nhid)).squeeze(2) # (B * T) * num_sampled
+        decoded = torch.bmm(noise, hiddens.view(B*T, self.nhid, 1)).squeeze(2) # (B * T) * num_sampled
 
         out_embed = self.out_embed(output)
-        out = torch.bmm(out_embed.view(B*T, self.nhid), hiddens.view(B*T, self.nhid, 1))
-        decoded = torch.cat([out_embed, decoded], 1)
+        out = torch.bmm(out_embed.view(B*T, 1, self.nhid), hiddens.view(B*T, self.nhid, 1)).squeeze(2)
+        decoded = torch.cat([out, decoded], 1)
 
         return decoded.view(B, T, self.num_sampled+1), hiddens # decoded: B * T * vocab_size
 
@@ -207,7 +207,7 @@ class LSTMHingeOutEmbNegModel(nn.Module):
         # code.interact(local=locals())
         noise = Variable(torch.arange(0, self.vocab_size).long()).unsqueeze(0).expand(B*T, self.vocab_size)
         noise = self.out_embed(noise) # (B * T) * num_sampled * nhid
-        code.interact(local=locals())
+        # code.interact(local=locals())
         decoded = torch.bmm(noise, hiddens.view(B*T, self.nhid, 1)).squeeze(2) # (B * T) * num_sampled
         return decoded.view(B, T, self.vocab_size), hiddens # decoded: B * T * vocab_size
 
@@ -282,7 +282,7 @@ class BiEncoderDecoderModel(nn.Module):
         y_embedded = self.embed(y)
 
         B, T = x.size()
-        rev_index = torch.range(T-1, 0, -1).view(1,-1).expand(B, T).long()
+        rev_index = torch.arange(T-1, -1, -1).view(1,-1).expand(B, T).long()
         mask_length = torch.sum(1-x_mask.data, 1).long().expand_as(rev_index)
         rev_index -= mask_length
         rev_index[rev_index < 0] = 0

@@ -187,7 +187,7 @@ def get_args():
     parser.add_argument('--optimizer',
                         type=str,
                         default='Adam',
-                        help='Optimizer: sgd (default) or adam or rmsprop')
+                        help='Optimizer: sgd or adam (default) or rmsprop')
 
     parser.add_argument('--learning_rate', '-lr',
                         type=float,

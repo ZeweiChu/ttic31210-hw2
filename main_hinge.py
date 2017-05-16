@@ -10,9 +10,11 @@ from torch.autograd import Variable
 import torch
 from torch import optim
 from torch.nn import MSELoss
+from tqdm import tqdm
 import progressbar
 import pickle
 import math
+import time
 
 def eval(model, data, args, crit):
 	total_dev_batches = len(data)
@@ -113,18 +115,19 @@ def main(args):
 		optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 	# best_loss = loss
 
-	# F.linear(embedded.view(embedded.size(0)*embedded.size(1), embedded.size(2)), model.embed.weight)
-
+	total_num_sentences = 0.
+	total_time = 0.
 	for epoch in range(args.num_epoches):
 
 		np.random.shuffle(train_sentences)
 		num_batches = len(train_sentences)
-		bar = progressbar.ProgressBar(max_value= num_batches * args.eval_epoch, redirect_stdout=True)
 		total_train_loss = 0.
 		total_num_words = 0.
-		for idx, (mb_s, mb_mask) in enumerate(train_sentences):
+		start = time.time()
+		for idx, (mb_s, mb_mask) in tqdm(enumerate(train_sentences)):
 
 			batch_size = mb_s.shape[0]
+			total_num_sentences += batch_size
 			mb_input = Variable(torch.from_numpy(mb_s[:,:-1])).long()
 			mb_out = Variable(torch.from_numpy(mb_s[:, 1:])).long()
 			mb_out_mask = Variable(torch.from_numpy(mb_mask[:, 1:]))
@@ -132,8 +135,8 @@ def main(args):
 			if args.model == "LSTMHingeOutEmbNegModel":
 				
 				mb_pred, hidden = model(mb_input, hidden, mb_out)
-				mb_out = Variable(mb_pred.data.new(mb_pred.size(0), mb_pred.size(1)).zero_())
-				loss = crit(mb_prsed, mb_out, mb_out_mask)
+				mb_out = Variable(mb_pred.data.new(mb_pred.size(0), mb_pred.size(1)).zero_()).long()
+				loss = crit(mb_pred, mb_out, mb_out_mask)
 			else:
 				mb_pred, hidden = model(mb_input, hidden)
 				loss = crit(mb_pred, mb_out, mb_out_mask)
@@ -147,10 +150,10 @@ def main(args):
 
 			nn.utils.clip_grad_norm(model.parameters(), args.grad_clipping)
 			optimizer.step()
-			# print(loss.data[0])
-			bar.update(num_batches * (epoch % args.eval_epoch) + idx +1)
 		
-		bar.finish()
+		end = time.time()
+		total_time += (end - start)
+		
 		print("training loss: %f" % (total_train_loss / total_num_words))
 
 		if (epoch+1) % args.eval_epoch == 0:
@@ -186,6 +189,15 @@ def main(args):
 			print("#" * 60)
 
 
+
+	correct_count, loss, num_words = eval(model, train_sentences, args, crit)
+	loss = loss / num_words
+	acc = correct_count / num_words
+	print("train loss %s" % (loss) )
+	print("train accuracy %f" % (acc))
+	print("#sents/sec: %f" % (total_num_sentences/total_time) )
+
+	model = torch.load(args.model_file)
 	test_sentences = utils.load_data(args.test_file)
 	args.num_test = len(test_sentences)
 	test_sentences = utils.encode(test_sentences, word_dict)
@@ -195,14 +207,6 @@ def main(args):
 	acc = correct_count / num_words
 	print("test loss %s" % (loss) )
 	print("test accuracy %f" % (acc))
-
-
-
-	correct_count, loss, num_words = eval(model, train_sentences, args, crit)
-	loss = loss / num_words
-	acc = correct_count / num_words
-	print("train loss %s" % (loss) )
-	print("train accuracy %f" % (acc))
 
 
 if __name__ == "__main__":

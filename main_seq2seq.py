@@ -14,8 +14,11 @@ import progressbar
 from tqdm import tqdm
 import pickle
 import math
+from collections import Counter
+import time
 
-def eval(model, data, args, crit):
+
+def eval(model, data, args, crit, err=None):
 	total_dev_batches = len(data)
 	correct_count = 0.
 	# bar = progressbar.ProgressBar(max_value=total_dev_batches).start()
@@ -42,6 +45,16 @@ def eval(model, data, args, crit):
 
 		mb_pred = torch.max(mb_pred.view(mb_pred.size(0) * mb_pred.size(1), mb_pred.size(2)), 1)[1]
 		correct = (mb_pred == mb_out).float()
+		correct = correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)
+		if err != None:
+			corr = correct.data.numpy().reshape(-1)
+			mb_pred = mb_pred.data.numpy().reshape(-1)
+			mb_out = mb_out.data.numpy().reshape(-1)
+			for i in range(corr.shape[0]):
+				if corr[i] == 0:
+					# if "<" + str(mb_out[i]) + "," + str(mb_pred[i]) + ">" in err:
+					err[str(mb_out[i]) + "," + str(mb_pred[i])] += 1
+		
 		# code.interact(local=locals())
 		correct_count += torch.sum(correct * mb_out_mask.contiguous().view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)).data[0]
 		# bar.update(idx+1)
@@ -76,7 +89,6 @@ def main(args):
 
 	# code.interact(local=locals())
 
-	att_dict = {}
 
 	if os.path.exists(args.model_file):
 		model = torch.load(args.model_file)
@@ -96,7 +108,17 @@ def main(args):
 
 	print("start evaluating on dev...")
 	
-	correct_count, loss, num_words = eval(model, dev_sentences, args, crit)
+	err = Counter()
+	correct_count, loss, num_words = eval(model, dev_sentences, args, crit, err=err)
+	if err != None:
+		err = err.most_common()[:20]
+		word_dict_rev = {v: k for k, v in word_dict.iteritems()}
+		for pair in err:
+			p = pair[0].split(",")
+			pg = word_dict_rev[int(p[0])]
+			pp = word_dict_rev[int(p[1])]
+			print("ground truth: " + pg + ", predicted: " + pp + ", number: " + str(pair[1]) + "\\\\")
+		# code.interact(local=locals())
 
 	loss = loss / num_words
 	acc = correct_count / num_words
@@ -115,6 +137,8 @@ def main(args):
 
 	# F.linear(embedded.view(embedded.size(0)*embedded.size(1), embedded.size(2)), model.embed.weight)
 
+	total_num_sentences = 0.
+	total_time = 0.
 	for epoch in range(args.num_epoches):
 
 		np.random.shuffle(train_sentences)
@@ -122,10 +146,12 @@ def main(args):
 		# bar = progressbar.ProgressBar(max_value= num_batches * args.eval_epoch, redirect_stdout=True)
 		total_train_loss = 0.
 		total_num_words = 0.
-		#for idx in tqdm(range(len(train_sentences))):
+		
+		start = time.time()
 		for idx, (mb_x, mb_x_mask, mb_y, mb_y_mask) in tqdm(enumerate(train_sentences)):
 
 			batch_size = mb_x.shape[0]
+			total_num_sentences += batch_size
 			mb_x = Variable(torch.from_numpy(mb_x)).long()
 			mb_x_mask = Variable(torch.from_numpy(mb_x_mask)).long()
 			hidden = model.init_hidden(batch_size)
@@ -138,17 +164,17 @@ def main(args):
 			loss = crit(mb_pred, mb_out, mb_out_mask)
 			num_words = torch.sum(mb_out_mask).data[0]
 			total_train_loss += loss.data[0] * num_words
-			# code.interact(local=locals())
 			total_num_words += num_words
 	
 			optimizer.zero_grad()
 			loss.backward()
 			optimizer.step()
-			# print(loss.data[0])
-			# bar.update(num_batches * (epoch % args.eval_epoch) + idx +1)
-		
-		# bar.finish()
+		end = time.time()
+		total_time += (end - start)
 		print("training loss: %f" % (total_train_loss / total_num_words))
+		
+
+		
 
 		# code.interact(local=locals())
 		if (epoch+1) % args.eval_epoch == 0:
@@ -195,7 +221,7 @@ def main(args):
 	print("test accuracy %f" % (acc))
 	print("test total number of words %f" % (num_words))
 
-
+	print("#sents/sec: %f" % (total_num_sentences/total_time) )
 
 	correct_count, loss, num_words = eval(model, train_sentences, args, crit)
 	loss = loss / num_words
