@@ -373,5 +373,3 @@ class BOWEncoderDecoderModel(nn.Module):
         return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens
 
 
-
-
