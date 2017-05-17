@@ -47,20 +47,28 @@ def main(args):
 
 	train_encodings = torch.cat(train_encodings, 0)
 
-	for idx, (mb_x, mb_x_mask) in enumerate(dev_sentences):
-		batch_size = mb_x.shape[0]
-		mb_x = Variable(torch.from_numpy(mb_x)).long()
-		mb_x_mask = Variable(torch.from_numpy(mb_x_mask)).long()
-		hidden = model.init_hidden(batch_size)
-		hiddens, _ = model.encode(mb_x, mb_x_mask, hidden)
-		similarity = F.linear(hiddens, train_encodings) 
+	# code.interact(local=locals())
+
+	idx = 0
+	mb_x, mb_x_mask = dev_sentences[0]
+	batch_size = mb_x.shape[0]
+	mb_x = Variable(torch.from_numpy(mb_x)).long()
+	mb_x_mask = Variable(torch.from_numpy(mb_x_mask)).long()
+	hidden = model.init_hidden(batch_size)
+	hiddens, _ = model.encode(mb_x, mb_x_mask, hidden)
+	similarity = F.linear(hiddens, train_encodings) 
+	# code.interact(local=locals())
+	similarity = similarity / torch.norm(hiddens, 2, 1).expand_as(similarity)
+	similarity = similarity / torch.norm(train_encodings, 2, 1).transpose(1,0).expand_as(similarity)
+	similarity = similarity.data.numpy()
+	nearest = similarity.argpartition(10)[:,-10:]
+	for i in range(10):
 		# code.interact(local=locals())
-		similarity = similarity / torch.norm(hiddens, 2, 1).expand_as(similarity)
-		similarity = similarity / torch.norm(train_encodings, 2, 1).transpose(1,0).expand_as(similarity)
-		nearest = similarity.max(1)[1]
-		for i in range(batch_size):
-			print("train: ", " ".join(train_sentences_raw[nearest.data[i][0]][0]))
-			print("dev: ", " ".join(dev_sentences_raw[idx*args.batch_size + i]))
+		print("dev: " + " ".join(dev_sentences_raw[idx*args.batch_size + i]))
+		for k in range(10):
+			print("nearest neighbor in training: " + " ".join(train_sentences_raw[nearest[i][k]][0]) + "\\\\")
+		
+			
 
 		
 		# code.interact(local=locals())
