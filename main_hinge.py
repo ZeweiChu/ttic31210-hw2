@@ -185,7 +185,7 @@ def main(args):
 					optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 				elif args.optimizer == "Adam":
 					optimizer = optim.Adam(model.parameters(), lr=learning_rate)
-			acc = prev_acc
+			prev_acc = acc
 
 			print("best dev accuracy: %f" % best_acc)
 			print("#" * 60)

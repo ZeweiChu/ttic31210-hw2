@@ -45,13 +45,14 @@ def eval(model, data, args, crit, err=None):
 
 		mb_pred = torch.max(mb_pred.view(mb_pred.size(0) * mb_pred.size(1), mb_pred.size(2)), 1)[1]
 		correct = (mb_pred == mb_out).float()
-		correct = correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)
+		wrong = (mb_pred != mb_out).float()
+		wrong = wrong * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)
 		if err != None:
-			corr = correct.data.numpy().reshape(-1)
+			wrong = wrong.data.numpy().reshape(-1)
 			mb_pred = mb_pred.data.numpy().reshape(-1)
 			mb_out = mb_out.data.numpy().reshape(-1)
-			for i in range(corr.shape[0]):
-				if corr[i] == 0:
+			for i in range(wrong.shape[0]):
+				if wrong[i] != 0:
 					# if "<" + str(mb_out[i]) + "," + str(mb_pred[i]) + ">" in err:
 					err[str(mb_out[i]) + "," + str(mb_pred[i])] += 1
 		
@@ -109,16 +110,7 @@ def main(args):
 
 	print("start evaluating on dev...")
 	
-	err = Counter()
-	correct_count, loss, num_words = eval(model, dev_sentences, args, crit, err=err)
-	if err != None:
-		err = err.most_common()[:20]
-		word_dict_rev = {v: k for k, v in word_dict.iteritems()}
-		for pair in err:
-			p = pair[0].split(",")
-			pg = word_dict_rev[int(p[0])]
-			pp = word_dict_rev[int(p[1])]
-			print("ground truth: " + pg + ", predicted: " + pp + ", number: " + str(pair[1]) + "\\\\")
+	correct_count, loss, num_words = eval(model, dev_sentences, args, crit)
 		# code.interact(local=locals())
 
 	loss = loss / num_words
@@ -138,6 +130,8 @@ def main(args):
 
 	# F.linear(embedded.view(embedded.size(0)*embedded.size(1), embedded.size(2)), model.embed.weight)
 
+
+	flog = open(args.log_file, "w")
 	total_num_sentences = 0.
 	total_time = 0.
 	for epoch in range(args.num_epoches):
@@ -210,6 +204,8 @@ def main(args):
 			print("best dev accuracy: %f" % best_acc)
 			print("#" * 60)
 
+			flog.write("%f\t%f\t%f\t%f\t%f\n"%(total_time, total_num_sentences, best_acc, acc, loss))
+
 
 	test_sentences = utils.load_data(args.test_file)
 	args.num_test = len(test_sentences)
@@ -229,6 +225,19 @@ def main(args):
 	acc = correct_count / num_words
 	print("train loss %s" % (loss) )
 	print("train accuracy %f" % (acc))
+
+	err = Counter()
+	correct_count, loss, num_words = eval(model, dev_sentences, args, crit, err=err)
+	if err != None:
+		err = err.most_common()[:20]
+		word_dict_rev = {v: k for k, v in word_dict.iteritems()}
+		for pair in err:
+			p = pair[0].split(",")
+			pg = word_dict_rev[int(p[0])]
+			pp = word_dict_rev[int(p[1])]
+			flog.write("ground truth: " + pg + ", predicted: " + pp + ", number: " + str(pair[1]) + "\\\\\n")
+
+	flog.close()
 
 
 if __name__ == "__main__":

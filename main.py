@@ -42,13 +42,14 @@ def eval(model, data, args, crit, err=None):
 		mb_pred = torch.max(mb_pred.view(mb_pred.size(0) * mb_pred.size(1), mb_pred.size(2)), 1)[1]
 		mb_out = mb_out.view_as(mb_pred)
 		correct = (mb_pred == mb_out).float()
-		correct = correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)
+		wrong = (mb_pred != mb_out).float()
+		wrong = wrong * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)
 		if err != None:
-			corr = correct.data.numpy().reshape(-1)
+			wrong = wrong.data.numpy().reshape(-1)
 			mb_pred = mb_pred.data.numpy().reshape(-1)
 			mb_out = mb_out.data.numpy().reshape(-1)
-			for i in range(corr.shape[0]):
-				if corr[i] == 0:
+			for i in range(wrong.shape[0]):
+				if wrong[i] != 0:
 					# if "<" + str(mb_out[i]) + "," + str(mb_pred[i]) + ">" in err:
 					err[str(mb_out[i]) + "," + str(mb_pred[i])] += 1
 					# else:

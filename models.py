@@ -233,16 +233,21 @@ class EncoderDecoderModel(nn.Module):
         return (Variable(weight.new(bsz, self.nhid).zero_()),
                 Variable(weight.new(bsz, self.nhid).zero_()))
 
-    def forward(self, x, x_mask, y, hidden):
+    def encode(self, x, x_mask, hidden):
         x_embedded = self.embed(x)
-        y_embedded = self.embed(y)
-
-        # encoder
         forgetgates, hiddens, cellgates, output = self.encoder(x_embedded, hidden)
         x_lengths = torch.sum(x_mask, 1).view(x.size(0), 1, 1) - 1
         x_lengths = x_lengths.expand(x.size(0), 1, hiddens.size(2))
         hiddens = hiddens.gather(1, x_lengths).view(x.size(0), self.nhid)
         cellgates = cellgates.gather(1, x_lengths).view(x.size(0), self.nhid)
+
+        return hiddens, cellgates
+
+    def forward(self, x, x_mask, y, hidden):
+        
+        # encoder
+        hiddens, cellgates = self.encode(x, x_mask, hidden)
+        y_embedded = self.embed(y)
 
         # decoder
         forgetgates, hiddens, cellgates, output = self.decoder(y_embedded, hx=(hiddens, cellgates))
@@ -276,10 +281,8 @@ class BiEncoderDecoderModel(nn.Module):
                 Variable(weight.new(bsz, self.nhid/2).zero_())), (Variable(weight.new(bsz, self.nhid/2).zero_()),
                 Variable(weight.new(bsz, self.nhid/2).zero_()))
 
-
-    def forward(self, x, x_mask, y, hidden):
+    def encode(self, x, x_mask, hidden):
         x_embedded = self.embed(x)
-        y_embedded = self.embed(y)
 
         B, T = x.size()
         rev_index = torch.arange(T-1, -1, -1).view(1,-1).expand(B, T).long()
@@ -305,6 +308,11 @@ class BiEncoderDecoderModel(nn.Module):
 
         hiddens = torch.cat([f_hiddens, b_hiddens], 1)
         cellgates = torch.cat([f_cellgates, b_cellgates], 1)
+        return hiddens, cellgates
+
+    def forward(self, x, x_mask, y, hidden):
+        y_embedded = self.embed(y)
+        hiddens, cellgates = self.encode(x, x_mask, hidden)
 
         # decoder
         forgetgates, hiddens, cellgates, output = self.decoder(y_embedded, hx=(hiddens, cellgates))
@@ -343,16 +351,22 @@ class BOWEncoderDecoderModel(nn.Module):
         return (Variable(weight.new(bsz, self.nhid).zero_()),
                 Variable(weight.new(bsz, self.nhid).zero_()))
 
-    def forward(self, x, x_mask, y, hidden):
+    def encode(self, x, x_mask, hidden):
         x_embedded = self.embed(x)
-        y_embedded = self.embed(y)
+        
         mask_3d = x_mask.unsqueeze(2).expand_as(x_embedded)
         x_embedded[mask_3d == 0] = 0.
         x_avg = torch.sum(x_embedded, 1).squeeze(1) / torch.sum(mask_3d, 1).squeeze(1).float()
         
         hidden = self.h_linear(x_avg)
         cell = self.c_linear(x_avg)
+        return hidden, cell
 
+    def forward(self, x, x_mask, y, hidden):
+        y_embedded = self.embed(y)
+        hidden, cell = self.encode(x, x_mask, hidden)
+        
+        #decoder
         forgetgates, hiddens, cellgates, output = self.decoder(y_embedded, hx=(hidden, cell))
         decoded = self.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)))
         decoded = F.log_softmax(decoded)
