@@ -1,40 +1,40 @@
-25.784300	6036.000000	0.280885	0.280885	3.916373
-51.178814	12072.000000	0.318587	0.318587	3.569381
-76.839039	18108.000000	0.350132	0.350132	3.412928
-102.079277	24144.000000	0.362197	0.362197	3.368608
-127.419689	30180.000000	0.365841	0.365841	3.334585
-152.766007	36216.000000	0.365841	0.365716	3.363407
-178.014811	42252.000000	0.368732	0.368732	3.355393
-203.357893	48288.000000	0.368732	0.367098	3.396834
-228.711365	54324.000000	0.372377	0.372377	3.414616
-253.985682	60360.000000	0.372377	0.371999	3.445371
-279.288604	66396.000000	0.372377	0.371371	3.453266
-304.557670	72432.000000	0.372377	0.370743	3.469812
-329.785264	78468.000000	0.372377	0.371245	3.473869
-355.272084	84504.000000	0.372377	0.370617	3.477291
-380.517442	90540.000000	0.372377	0.370240	3.482234
-405.889762	96576.000000	0.372377	0.370366	3.483658
-431.322692	102612.000000	0.372377	0.370366	3.484452
-456.712789	108648.000000	0.372377	0.370240	3.485479
-482.070186	114684.000000	0.372377	0.370114	3.486296
-508.761442	120720.000000	0.372377	0.370366	3.486603
-ground truth: had, predicted: was, number: 47\\
-ground truth: Bob, predicted: He, number: 46\\
-ground truth: and, predicted: ., number: 37\\
-ground truth: his, predicted: the, number: 33\\
-ground truth: to, predicted: ., number: 31\\
-ground truth: ., predicted: to, number: 31\\
-ground truth: decided, predicted: was, number: 28\\
-ground truth: ., predicted: and, number: 26\\
-ground truth: the, predicted: a, number: 24\\
-ground truth: 's, predicted: was, number: 23\\
-ground truth: a, predicted: the, number: 23\\
+27.433171	6036.000000	0.285660	0.285660	3.927834
+54.656624	12072.000000	0.333040	0.333040	3.546790
+82.185530	18108.000000	0.348498	0.348498	3.419826
+109.591538	24144.000000	0.359809	0.359809	3.366255
+136.846029	30180.000000	0.364459	0.364459	3.350860
+164.300870	36216.000000	0.364459	0.364459	3.376599
+193.018776	42252.000000	0.364459	0.363328	3.440390
+221.902915	48288.000000	0.370114	0.370114	3.440733
+250.751757	54324.000000	0.370114	0.367475	3.502406
+279.474595	60360.000000	0.370114	0.367350	3.518950
+307.964698	66396.000000	0.370114	0.369863	3.538776
+335.548870	72432.000000	0.370114	0.369612	3.557243
+363.080727	78468.000000	0.370114	0.367601	3.568151
+391.115185	84504.000000	0.370114	0.367475	3.575285
+419.038088	90540.000000	0.370114	0.368481	3.579187
+447.683172	96576.000000	0.370114	0.367978	3.581677
+476.005034	102612.000000	0.370114	0.367852	3.584024
+504.421239	108648.000000	0.370114	0.368229	3.584776
+533.083050	114684.000000	0.370114	0.367978	3.585174
+561.854867	120720.000000	0.370114	0.367978	3.585668
+ground truth: had, predicted: was, number: 41\\
+ground truth: Bob, predicted: He, number: 39\\
+ground truth: and, predicted: ., number: 38\\
+ground truth: his, predicted: the, number: 35\\
+ground truth: ., predicted: and, number: 27\\
+ground truth: decided, predicted: was, number: 27\\
+ground truth: to, predicted: ., number: 26\\
+ground truth: didn, predicted: was, number: 25\\
+ground truth: the, predicted: a, number: 25\\
+ground truth: ., predicted: to, number: 25\\
 ground truth: went, predicted: was, number: 22\\
-ground truth: didn, predicted: was, number: 20\\
-ground truth: her, predicted: the, number: 19\\
-ground truth: Bob, predicted: Sue, number: 17\\
-ground truth: the, predicted: his, number: 17\\
-ground truth: Sue, predicted: She, number: 17\\
+ground truth: her, predicted: the, number: 20\\
+ground truth: the, predicted: her, number: 19\\
+ground truth: the, predicted: his, number: 19\\
+ground truth: to, predicted: and, number: 19\\
+ground truth: He, predicted: Bob, number: 18\\
+ground truth: Sue, predicted: She, number: 18\\
+ground truth: and, predicted: to, number: 18\\
+ground truth: 's, predicted: was, number: 17\\
 ground truth: !, predicted: ., number: 17\\
-ground truth: got, predicted: was, number: 16\\
-ground truth: ,, predicted: ., number: 15\\

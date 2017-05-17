@@ -64,9 +64,9 @@ def main(args):
 	nearest = similarity.argpartition(10)[:,-10:]
 	for i in range(10):
 		# code.interact(local=locals())
-		print("dev: " + " ".join(dev_sentences_raw[idx*args.batch_size + i]))
+		print("\\\\dev: " + " ".join(dev_sentences_raw[idx*args.batch_size + i]).replace("<", "$<$").replace(">", "$>$") + "\\\\")
 		for k in range(10):
-			print("nearest neighbor in training: " + " ".join(train_sentences_raw[nearest[i][k]][0]) + "\\\\")
+			print("nearest neighbor in training: " + " ".join(train_sentences_raw[nearest[i][k]][0]).replace("<", "$<$").replace(">", "$>$") + "\\\\")
 		
 			
 

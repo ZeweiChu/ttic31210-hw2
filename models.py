@@ -310,6 +310,26 @@ class BiEncoderDecoderModel(nn.Module):
         cellgates = torch.cat([f_cellgates, b_cellgates], 1)
         return hiddens, cellgates
 
+    def decode(self, y, hiddens, cellgates):
+        res = [y]
+        for i in range(10):
+            # code.interact(local=locals())
+            y_embedded = self.embed(y)
+            
+            forgetgates, hiddens, cellgates, output = self.decoder(y_embedded, hx=(hiddens, cellgates))
+            hiddens = hiddens.squeeze(1)
+            cellgates = cellgates.squeeze(1)
+
+            decoded = self.linear(hiddens.view(hiddens.size(0), hiddens.size(1)))
+            decoded = F.log_softmax(decoded)
+            decoded = decoded.view(hiddens.size(0), 1, decoded.size(1))
+            y = decoded.max(2)[1].squeeze(2)
+            res.append(y)
+
+        return torch.cat(res, 1)
+
+
+
     def forward(self, x, x_mask, y, hidden):
         y_embedded = self.embed(y)
         hiddens, cellgates = self.encode(x, x_mask, hidden)
