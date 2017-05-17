@@ -119,6 +119,7 @@ def main(args):
 	print("accuracy %f" % (acc))
 	print("total number of words %f" % (num_words))
 	best_acc = acc
+	prev_acc = acc
 
 	learning_rate = args.learning_rate
 	if args.optimizer == "SGD":
@@ -181,12 +182,13 @@ def main(args):
 				torch.save(model, args.model_file)
 				best_acc = acc
 				print("model saved...")
-			else:
+			elif acc < prev_acc:
 				learning_rate *= 0.5
 				if args.optimizer == "SGD":
 					optimizer = optim.SGD(model.parameters(), lr=learning_rate)
 				elif args.optimizer == "Adam":
 					optimizer = optim.Adam(model.parameters(), lr=learning_rate)
+			prev_acc = acc
 
 			print("best dev accuracy: %f" % best_acc)
 			print("#" * 60)
