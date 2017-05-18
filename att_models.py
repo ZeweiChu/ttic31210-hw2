@@ -55,38 +55,89 @@ class LSTM(nn.Module):
     def forward(self, input, hx=None):
 
         hx, cx = hx
-        gates = F.linear(input, self.weight_ih_l0, self.bias_ih_l0) \
-                    + F.linear(hx, self.weight_hh_l0, self.bias_hh_l0)
+        all_hx = []
+        all_cx = []
+        for layer in range(self.num_layers):
+            
+            weight_ih = getattr(self, "weight_ih_l" + str(layer))
+            bias_ih = getattr(self, "bias_ih_l" + str(layer))
+            weight_hh = getattr(self, "weight_hh_l" + str(layer))
+            bias_hh = getattr(self, "bias_hh_l" + str(layer))
+            # code.interact(local=locals())
+            gates = F.linear(input, weight_ih, bias_ih) \
+                        + F.linear(hx[layer], weight_hh, bias_hh)
 
-        ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
+            ingate, forgetgate, cellgate, outgate = gates.chunk(4, 1)
 
-        ingate = F.sigmoid(ingate)
-        forgetgate = F.sigmoid(forgetgate)
-        cellgate = F.tanh(cellgate)
-        outgate = F.sigmoid(outgate)
+            ingate = F.sigmoid(ingate)
+            forgetgate = F.sigmoid(forgetgate)
+            cellgate = F.tanh(cellgate)
+            outgate = F.sigmoid(outgate)
 
-        cx = (forgetgate * cx) + (ingate * cellgate)
-        hx = outgate * F.tanh(cx)
+            cx = (forgetgate * cx[layer]) + (ingate * cellgate)
+            hx = outgate * F.tanh(cx)
+            all_hx.append(hx)
+            all_cx.append(cx)
 
-        return hx, cx
+        return all_hx, all_cx
 
 
-class AttentionLayer(nn.Module):
+class ConcatAttentionLayer(nn.Module):
     def __init__(self, args):
-        super(AttentionLayer, self).__init__()
+        super(ConcatAttentionLayer, self).__init__()
         self.nhid = args.hidden_size
         self.embedding_size = args.embedding_size
 
-        self.s_linear = nn.Linear(self.nhid, self.nhid)
-        self.h_linear = nn.Linear(self.nhid, self.nhid)
-        self.att_linear = nn.Linear(self.nhid, self.nhid)
+        self.linear = nn.Linear(self.nhid + self.nhid, self.nhid)
+        self.att_linear = nn.Linear(self.nhid, 1)
+
+        self.linear.weight.data.uniform_(-0.1, 0.1)
+        self.linear.bias.data.zero_()
+        self.att_linear.weight.data.uniform_(-0.1, 0.1)
+        self.att_linear.bias.data.zero_()
 
     def forward(self, s, h):
-        return self.att_linear(
-            # F.tanh(
-                self.s_linear(s) + self.h_linear(h)
-                # )
-            )
+        B, T, hid_size = s.size()
+        s = s.view(B*T, hid_size)
+        h = h.view(B*T, hid_size)
+        att = torch.cat([s, h], 1)
+        att = self.linear(att)
+        att = self.att_linear(F.tanh(att)).view(B, T)
+        att = torch.exp(F.log_softmax(att))
+        return att
+
+class DotAttentionLayer(nn.Module):
+    def __init__(self, args):
+        super(DotAttentionLayer, self).__init__()
+        self.nhid = args.hidden_size
+        self.embedding_size = args.embedding_size
+
+    def forward(self, s, h):
+        
+        att = s*h
+        att = torch.sum(att, 2).squeeze(2)
+        att = torch.exp(F.log_softmax(att))
+        return att
+
+
+class BilinearAttentionLayer(nn.Module):
+    def __init__(self, args):
+        super(BilinearAttentionLayer, self).__init__()
+        self.nhid = args.hidden_size
+        self.embedding_size = args.embedding_size
+
+        self.bilinear = Parameter(torch.Tensor(self.nhid, self.nhid))
+        self.bilinear.data.uniform_(-0.1, 0.1)
+
+    def forward(self, s, h):
+        B, T, hid_size = s.size()
+        s = s.view(B*T, hid_size)
+        h = h.view(B*T, hid_size)
+        att = F.linear(s, self.bilinear).view(B, T, hid_size)
+        att = torch.sum(att * h, 2).squeeze(2)
+        att = torch.exp(F.log_softmax(att))
+        # code.interact(local=locals())
+        return att
 
 
 '''
@@ -98,26 +149,54 @@ class AttentionEncoderDecoderModel(nn.Module):
     def __init__(self, args):
         super(AttentionEncoderDecoderModel, self).__init__()
         self.nhid = args.hidden_size
+        self.num_layers = args.num_layers
 
         self.embed = nn.Embedding(args.vocab_size, args.embedding_size)
         self.fencoder = LSTM(args.embedding_size, args.hidden_size/2)
         self.bencoder = LSTM(args.embedding_size, args.hidden_size/2)
-        self.decoder = LSTM(args.embedding_size + self.nhid, args.hidden_size)
+        self.decoder = LSTM(args.embedding_size, args.hidden_size)
 
-        self.att_linear = AttentionLayer(args)
+        if args.attention_type == "dot":
+            self.att_layer = DotAttentionLayer(args)
+        elif args.attention_type == "bilinear":
+            self.att_layer = BilinearAttentionLayer(args)
+        elif args.attention_type == "concat":
+            self.att_layer = ConcatAttentionLayer(args)
 
 
-        self.linear = nn.Linear(self.nhid, args.vocab_size)
+        self.linear = nn.Linear(self.nhid + self.nhid, args.vocab_size)
         self.linear.bias.data.fill_(0)
         self.linear.weight.data.uniform_(-0.1, 0.1)
+
+        # self.context_linear = nn.Linear(self.nhid + self.nhid, self.nhid)
+        # self.context_linear.bias.data.fill_(0)
+        # self.context_linear.weight.data.uniform_(-0.1, 0.1)
 
         self.embed.weight.data.uniform_(-0.1, 0.1)
 
     def init_hidden(self, bsz):
         weight = next(self.parameters()).data
-        return (Variable(weight.new(bsz, self.nhid/2).zero_()),
-                Variable(weight.new(bsz, self.nhid/2).zero_())), (Variable(weight.new(bsz, self.nhid/2).zero_()),
-                Variable(weight.new(bsz, self.nhid/2).zero_()))
+        fhx = []
+        fcx = []
+        bhx = []
+        bcx = []
+        for i in range(self.num_layers):
+            fhx.append(Variable(weight.new(bsz, self.nhid/2).zero_()))
+            fcx.append(Variable(weight.new(bsz, self.nhid/2).zero_()))
+            bhx.append(Variable(weight.new(bsz, self.nhid/2).zero_()))
+            bcx.append(Variable(weight.new(bsz, self.nhid/2).zero_()))
+
+        return ((fhx, fcx), (bhx, bcx))
+
+    def init_decoder_hidden(self, bsz):
+        weight = next(self.parameters()).data
+        hx = []
+        cx = []
+        for i in range(self.num_layers):
+            hx.append(Variable(weight.new(bsz, self.nhid).zero_()))
+            cx.append(Variable(weight.new(bsz, self.nhid).zero_()))
+
+        return (hx, cx)
 
 
     def forward(self, x, x_mask, y, hidden):
@@ -145,10 +224,10 @@ class AttentionEncoderDecoderModel(nn.Module):
         for i in range(T):
             f_h = self.fencoder(x_embedded[:, i, :], f_h)
             b_h = self.bencoder(x_backward_embedded[:, i, :], b_h)
-            f_hiddens.append(f_h[0].unsqueeze(1))
-            b_hiddens.append(b_h[0].unsqueeze(1))
-            f_cells.append(f_h[1].unsqueeze(1))
-            b_cells.append(b_h[1].unsqueeze(1))
+            f_hiddens.append(f_h[0][-1].unsqueeze(1)) # f_h[0][-1]: hidden state of the last layer
+            b_hiddens.append(b_h[0][-1].unsqueeze(1))
+            f_cells.append(f_h[1][-1].unsqueeze(1))
+            b_cells.append(b_h[1][-1].unsqueeze(1))
 
         f_hiddens = torch.cat(f_hiddens, 1)
         b_hiddens = torch.cat(b_hiddens, 1)
@@ -158,23 +237,31 @@ class AttentionEncoderDecoderModel(nn.Module):
         cells = torch.cat([f_cells, b_cells], 2)
 
 
+
         # decoder
         B_y, T_y = y.size() 
-        hx = torch.mean(hiddens, 1).squeeze(1)
-        cx = torch.mean(cells, 1).squeeze(1)
-        context = hx
+        h_mean = torch.mean(hiddens, 1).squeeze(1)
+        c_mean = torch.mean(cells, 1).squeeze(1)
+        hx, cx = [], []
+        
+        for i in range(self.num_layers):
+            hx.append(h_mean.clone())
+            cx.append(c_mean.clone())
+
         y_embedded = self.embed(y)
 
+        context = h_mean
         out_hiddens = []
         
         for i in range(T_y):
-            hx, cx = self.decoder(torch.cat([y_embedded[:, i, :], context], 1), (hx, cx))
+            hx, cx = self.decoder(y_embedded[:, i, :], (hx, cx))
             
-            att = torch.exp(F.log_softmax(self.att_linear(hx.unsqueeze(1).expand_as(hiddens).contiguous().view(B_y*T, -1)\
-                , hiddens.contiguous().view(B_y*T, -1)))).contiguous().view(B_y, T, -1)
-            context = (hiddens * att).sum(1).squeeze(1)
-            
-            out_hiddens.append(hx.unsqueeze(1))
+            att = self.att_layer(hx[-1].unsqueeze(1).expand_as(hiddens).contiguous()\
+                , hiddens.contiguous())
+            # code.interact(local=locals())
+            context = (hiddens * att.unsqueeze(2).expand_as(hiddens)).sum(1).squeeze(1)            
+            out_hiddens.append(torch.cat([hx[-1], context], 1).unsqueeze(1))
+
         out_hiddens = torch.cat(out_hiddens, 1)
 
         # code.interact(local=locals())

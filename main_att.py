@@ -16,6 +16,7 @@ import pickle
 import math
 from collections import Counter
 import time
+from six.moves import cPickle
 
 
 def eval(model, data, args, crit, err=None):
@@ -30,12 +31,12 @@ def eval(model, data, args, crit, err=None):
 	for idx, (mb_x, mb_x_mask, mb_y, mb_y_mask) in enumerate(data):
 
 		batch_size = mb_x.shape[0]
-		mb_x = Variable(torch.from_numpy(mb_x)).long()
-		mb_x_mask = Variable(torch.from_numpy(mb_x_mask)).long()
+		mb_x = Variable(torch.from_numpy(mb_x), volatile=True).long()
+		mb_x_mask = Variable(torch.from_numpy(mb_x_mask), volatile=True).long()
 		hidden = model.init_hidden(batch_size)
-		mb_input = Variable(torch.from_numpy(mb_y[:,:-1])).long()
-		mb_out = Variable(torch.from_numpy(mb_y[:, 1:])).long()
-		mb_out_mask = Variable(torch.from_numpy(mb_y_mask[:, 1:]))
+		mb_input = Variable(torch.from_numpy(mb_y[:,:-1]), volatile=True).long()
+		mb_out = Variable(torch.from_numpy(mb_y[:, 1:]), volatile=True).long()
+		mb_out_mask = Variable(torch.from_numpy(mb_y_mask[:, 1:]), volatile=True)
 		
 		mb_pred, hidden = model(mb_x, mb_x_mask, mb_input, hidden)
 		num_words = torch.sum(mb_out_mask).data[0]
@@ -67,28 +68,29 @@ def eval(model, data, args, crit, err=None):
 
 def main(args):
 
+	infos = {}
+	if os.path.isfile(os.path.join(args.checkpoint_path,"infos.pkl")):
+		with open(os.path.join(args.checkpoint_path, 'infos.pkl')) as f:
+			infos = cPickle.load(f)  
+	iteration = infos.get('iter', 0)
+	epoch = infos.get('epoch', 0)
+	opt = infos.get("args", {})
+	best_acc = infos.get("best_acc", 0)
+	learning_rate = infos.get('learning_rate', 0.01)
+	prev_acc = infos.get("prev_acc", 0)
+
+
 	train_sentences = utils.load_data(args.train_file)
 	dev_sentences = utils.load_data(args.dev_file)
-
 	args.num_train = len(train_sentences)
 	args.num_dev = len(dev_sentences)
-
 	word_dict, args.vocab_size = utils.load_dict(args.vocab_file)
-
 	train_sentences = utils.encode(train_sentences, word_dict)
-
 	train_sentences = utils.gen_examples(train_sentences, args.batch_size)
 	dev_sentences = utils.encode(dev_sentences, word_dict)
 	dev_sentences = utils.gen_examples(dev_sentences, args.batch_size)
 
-
-	if os.path.exists(args.model_file):
-		model = torch.load(args.model_file)
-	elif args.model == "AttentionEncoderDecoderModel":
-		model = AttentionEncoderDecoderModel(args)
-	
-
-
+	model = utils.model_setup(args)
 
 	if args.criterion == "HingeModelCriterion":
 		crit = utils.HingeModelCriterion()
@@ -106,7 +108,7 @@ def main(args):
 	print("dev total number of words %f" % (num_words))
 	best_acc = acc
 	prev_acc = acc
-
+	
 	learning_rate = args.learning_rate
 	if args.optimizer == "SGD":
 		optimizer = optim.SGD(model.parameters(), lr=learning_rate)
@@ -169,13 +171,27 @@ def main(args):
 			print("dev accuracy %f" % (acc))
 			print("dev total number of words %f" % (num_words))
 
-			if acc > best_acc:
-				torch.save(model, args.model_file)
-				best_acc = acc
-				# infos['epoch'] = epoch
-				# infos['best_acc'] = best_acc
-				# infos['vocab']
+			# save checkpoint
+			checkpoint_path = os.path.join(args.checkpoint_path, 'model.pth')
+			torch.save(model.state_dict(), checkpoint_path)
+			optimizer_path = os.path.join(args.checkpoint_path, 'optimizer.pth')
+			torch.save(optimizer.state_dict(), optimizer_path)
+			infos = {}
+			infos['epoch'] = epoch
+			infos['best_acc'] = best_acc
+			infos['args'] = args
+			infos['learning_rate'] = learning_rate
+			infos['prev_acc'] = prev_acc
+			with open(os.path.join(args.checkpoint_path, 'infos.pkl'), 'wb') as f:
+				cPickle.dump(infos, f)
 
+
+			if acc > best_acc:
+				checkpoint_path = os.path.join(args.checkpoint_path, 'model_best.pth')
+				torch.save(model.state_dict(), checkpoint_path)
+				with open(os.path.join(args.checkpoint_path, 'infos_best.pkl'), 'wb') as f:
+					cPickle.dump(infos, f)
+				best_acc = acc
 				print("model saved...")
 			elif acc < prev_acc:
 				learning_rate *= 0.5
@@ -184,12 +200,12 @@ def main(args):
 				elif args.optimizer == "Adam":
 					optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 			prev_acc = acc
-
 			print("best dev accuracy: %f" % best_acc)
 			print("#" * 60)
 
 
-	model = torch.load(args.model_file)
+	args.load_best = 1
+	model = utils.model_setup(args)
 
 
 	test_sentences = utils.load_data(args.test_file)

@@ -5,6 +5,9 @@ import itertools
 import torch.nn as nn
 import torch
 import code
+import os
+from att_models import *
+from six.moves import cPickle
 
 def load_data(in_file):
     sentences = []
@@ -135,5 +138,21 @@ class HingeModelCriterion(nn.Module):
         loss = torch.sum(torch.sum(torch.max(input + 1  - correct, 0)[0], 1) - 1) / torch.sum(mask)
 
         return loss
+def model_setup(args):
+    if args.model == "AttentionEncoderDecoderModel":
+        model = AttentionEncoderDecoderModel(args)  
+    else:
+        raise Exception("Model not supported: {}".format(args.model))
 
+    if os.path.isdir(args.checkpoint_path):
+        if args.load_best:
+            if os.path.isfile(os.path.join(args.checkpoint_path,"infos.pkl")):
+                print('load model from', os.path.join(args.checkpoint_path, 'model_best.pth'))
+                model.load_state_dict(torch.load(os.path.join(args.checkpoint_path, 'model_best.pth')))
+        else:
+            if os.path.isfile(os.path.join(args.checkpoint_path,"infos_best.pkl")):
+                print('load model from', os.path.join(args.checkpoint_path, 'model.pth'))
+                model.load_state_dict(torch.load(os.path.join(args.checkpoint_path, 'model.pth')))
+
+    return model
         

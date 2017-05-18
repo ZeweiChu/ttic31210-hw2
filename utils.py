@@ -5,7 +5,9 @@ import itertools
 import torch.nn as nn
 import torch
 from torch.autograd import Variable
+import os
 import code
+from att_models import *
 
 def load_data(in_file):
     sentences = []
@@ -139,4 +141,3 @@ class HingeModelCriterion(nn.Module):
         return loss
 
 
-        

@@ -55,6 +55,13 @@ def get_args():
                         default="vanilla",
                         help='type of attention function')
 
+    parser.add_argument('--checkpoint_path',
+                        type=str,
+                        default=None,
+                        help='checkpoint path')
+
+
+
 
     # Data file
     parser.add_argument('--train_file',
@@ -204,5 +211,18 @@ def get_args():
                         type=int,
                         default=10,
                         help='number of negative sampling')
+
+    parser.add_argument('--start_from',
+                        type=str,
+                        default=None,
+                        help='start training from a checkpoint')
+    parser.add_argument('--load_best',
+                        type=int,
+                        default=0,
+                        help='load best model or not')
+    parser.add_argument('--attention_type',
+                        type=str,
+                        default="dot",
+                        help='type of the attention layer: dot/bilinear/concat')
 
     return parser.parse_args()
