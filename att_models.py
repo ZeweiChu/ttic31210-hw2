@@ -82,7 +82,11 @@ class AttentionLayer(nn.Module):
         self.att_linear = nn.Linear(self.nhid, self.nhid)
 
     def forward(self, s, h):
-        return self.att_linear(F.tanh(self.s_linear(s) + self.h_linear(h)))
+        return self.att_linear(
+            # F.tanh(
+                self.s_linear(s) + self.h_linear(h)
+                # )
+            )
 
 
 '''
@@ -98,7 +102,7 @@ class AttentionEncoderDecoderModel(nn.Module):
         self.embed = nn.Embedding(args.vocab_size, args.embedding_size)
         self.fencoder = LSTM(args.embedding_size, args.hidden_size/2)
         self.bencoder = LSTM(args.embedding_size, args.hidden_size/2)
-        self.decoder = LSTM(args.embedding_size, args.hidden_size)
+        self.decoder = LSTM(args.embedding_size + self.nhid, args.hidden_size)
 
         self.att_linear = AttentionLayer(args)
 
@@ -158,37 +162,26 @@ class AttentionEncoderDecoderModel(nn.Module):
         B_y, T_y = y.size() 
         hx = torch.mean(hiddens, 1).squeeze(1)
         cx = torch.mean(cells, 1).squeeze(1)
+        context = hx
+        y_embedded = self.embed(y)
+
+        out_hiddens = []
         
         for i in range(T_y):
-            hx, cx = self.decoder(y_embedded[:, i, :], (hx, cx))
+            hx, cx = self.decoder(torch.cat([y_embedded[:, i, :], context], 1), (hx, cx))
             
             att = torch.exp(F.log_softmax(self.att_linear(hx.unsqueeze(1).expand_as(hiddens).contiguous().view(B_y*T, -1)\
                 , hiddens.contiguous().view(B_y*T, -1)))).contiguous().view(B_y, T, -1)
-            hx = (hiddens * att).sum(1)
-            code.interact(local=locals())
+            context = (hiddens * att).sum(1).squeeze(1)
             
+            out_hiddens.append(hx.unsqueeze(1))
+        out_hiddens = torch.cat(out_hiddens, 1)
 
-
-        
-        # x_lengths = torch.sum(x_mask, 1).view(x.size(0), 1, 1) - 1
-        # x_lengths = x_lengths.expand(x.size(0), 1, f_hiddens.size(2))
-        
-        # f_hiddens = f_hiddens.gather(1, x_lengths).view(x.size(0), self.nhid/2)
-        # f_cellgates = f_cellgates.gather(1, x_lengths).view(x.size(0), self.nhid/2)
-        # b_hiddens = b_hiddens.gather(1, x_lengths).view(x.size(0), self.nhid/2)
-        # b_cellgates = b_cellgates.gather(1, x_lengths).view(x.size(0), self.nhid/2)
-
-        # hiddens = torch.cat([f_hiddens, b_hiddens], 1)
-        # cellgates = torch.cat([f_cellgates, b_cellgates], 1)
-
-
-        # decoder
-        forgetgates, hiddens, cellgates, output = self.decoder(y_embedded, hx=(hiddens, cellgates))
-
+        # code.interact(local=locals())
         # output layer
-        decoded = self.linear(hiddens.view(hiddens.size(0)*hiddens.size(1), hiddens.size(2)))
+        decoded = self.linear(out_hiddens.view(out_hiddens.size(0)*out_hiddens.size(1), out_hiddens.size(2)))
         decoded = F.log_softmax(decoded)
-        return decoded.view(hiddens.size(0), hiddens.size(1), decoded.size(1)), hiddens
+        return decoded.view(out_hiddens.size(0), out_hiddens.size(1), decoded.size(1)), out_hiddens
 
 
 

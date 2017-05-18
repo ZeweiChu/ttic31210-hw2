@@ -39,19 +39,21 @@ def eval(model, data, args, crit, err=None):
 		
 		mb_pred, hidden = model(mb_x, mb_x_mask, mb_input, hidden)
 		num_words = torch.sum(mb_out_mask).data[0]
+		# code.interact(local=locals())
 		loss += crit(mb_pred, mb_out, mb_out_mask).data[0] * num_words
 
 		total_num_words += num_words
 
 		mb_pred = torch.max(mb_pred.view(mb_pred.size(0) * mb_pred.size(1), mb_pred.size(2)), 1)[1]
 		correct = (mb_pred == mb_out).float()
-		correct = correct * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)
+		wrong = (mb_pred != mb_out).float()
+		wrong = wrong * mb_out_mask.view(mb_out_mask.size(0) * mb_out_mask.size(1), 1)
 		if err != None:
-			corr = correct.data.numpy().reshape(-1)
+			wrong = wrong.data.numpy().reshape(-1)
 			mb_pred = mb_pred.data.numpy().reshape(-1)
 			mb_out = mb_out.data.numpy().reshape(-1)
-			for i in range(corr.shape[0]):
-				if corr[i] == 0:
+			for i in range(wrong.shape[0]):
+				if wrong[i] != 0:
 					# if "<" + str(mb_out[i]) + "," + str(mb_pred[i]) + ">" in err:
 					err[str(mb_out[i]) + "," + str(mb_pred[i])] += 1
 		
@@ -61,9 +63,6 @@ def eval(model, data, args, crit, err=None):
 
 	# bar.finish()
 	return correct_count, loss, total_num_words
-
-def train(sentences):
-	pass
 
 
 def main(args):
@@ -75,20 +74,12 @@ def main(args):
 	args.num_dev = len(dev_sentences)
 
 	word_dict, args.vocab_size = utils.load_dict(args.vocab_file)
-	# word_dict, args.vocab_size = utils.build_dict(train_sentences, max_words=args.vocab_size)
-	# word_dict["UNK"] = 0
-	
-
 
 	train_sentences = utils.encode(train_sentences, word_dict)
 
 	train_sentences = utils.gen_examples(train_sentences, args.batch_size)
-
-	
 	dev_sentences = utils.encode(dev_sentences, word_dict)
 	dev_sentences = utils.gen_examples(dev_sentences, args.batch_size)
-
-	# code.interact(local=locals())
 
 
 	if os.path.exists(args.model_file):
@@ -106,17 +97,7 @@ def main(args):
 
 	print("start evaluating on dev...")
 	
-	err = Counter()
-	correct_count, loss, num_words = eval(model, dev_sentences, args, crit, err=err)
-	if err != None:
-		err = err.most_common()[:20]
-		word_dict_rev = {v: k for k, v in word_dict.iteritems()}
-		for pair in err:
-			p = pair[0].split(",")
-			pg = word_dict_rev[int(p[0])]
-			pp = word_dict_rev[int(p[1])]
-			print("ground truth: " + pg + ", predicted: " + pp + ", number: " + str(pair[1]) + "\\\\")
-		# code.interact(local=locals())
+	correct_count, loss, num_words = eval(model, dev_sentences, args, crit)
 
 	loss = loss / num_words
 	acc = correct_count / num_words
@@ -208,6 +189,9 @@ def main(args):
 			print("#" * 60)
 
 
+	model = torch.load(args.model_file)
+
+
 	test_sentences = utils.load_data(args.test_file)
 	args.num_test = len(test_sentences)
 	test_sentences = utils.encode(test_sentences, word_dict)
@@ -226,6 +210,17 @@ def main(args):
 	acc = correct_count / num_words
 	print("train loss %s" % (loss) )
 	print("train accuracy %f" % (acc))
+
+	err = Counter()
+	correct_count, loss, num_words = eval(model, dev_sentences, args, crit, err=err)
+	if err != None:
+		err = err.most_common()[:20]
+		word_dict_rev = {v: k for k, v in word_dict.iteritems()}
+		for pair in err:
+			p = pair[0].split(",")
+			pg = word_dict_rev[int(p[0])]
+			pp = word_dict_rev[int(p[1])]
+			print("ground truth: " + pg + ", predicted: " + pp + ", number: " + str(pair[1]) + "\\\\")
 
 
 if __name__ == "__main__":
